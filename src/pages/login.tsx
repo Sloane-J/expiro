@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { data, error: authError } = isSignUp 
+    const { error: authError } = isSignUp 
       ? await signUp(email, password)
       : await signIn(email, password)
 
