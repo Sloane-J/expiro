@@ -13,52 +13,63 @@ export type Product = {
   created_at: string
 }
 
-export function calculateReminderDate(expiryDate: string): string {
-  const expiry = new Date(expiryDate)
-  const today = new Date()
-  
-  const daysUntilExpiry = Math.floor(
-    (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  )
-  
-  // Default: 90 days before expiry
-  let reminderDate = new Date(expiry)
-  reminderDate.setDate(reminderDate.getDate() - 90)
-  
-  // If expiry < 90 days away, remind 7 days before
-  if (daysUntilExpiry < 90) {
-    reminderDate = new Date(expiry)
-    reminderDate.setDate(reminderDate.getDate() - 7)
-  }
-  
-  // If reminder already passed, set to today
-  if (reminderDate < today) {
-    return today.toISOString().split('T')[0]
-  }
-  
-  return reminderDate.toISOString().split('T')[0]
-}
-
 export function getProductStatus(expiryDate: string): string {
   const today = new Date()
+  today.setHours(0, 0, 0, 0)
   const expiry = new Date(expiryDate)
+  expiry.setHours(0, 0, 0, 0)
+  
   const daysUntilExpiry = Math.floor(
     (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
   )
   
   if (daysUntilExpiry < 0) return 'expired'
-  if (daysUntilExpiry <= 30) return 'expiring_soon'
+  if (daysUntilExpiry <= 90) return 'expiring_soon'
   return 'safe'
 }
 
 export async function getProducts() {
-  const { data, error } = await supabase
+  try {
+    // Check if user is actually logged in
+    const { data: { session }, error: authError } = await supabase.auth.getSession()
+    
+    if (authError || !session) {
+      console.warn("Fetch blocked: No authenticated session found.")
+      throw new Error('JWT_EXPIRED: Please log in to view products')
+    }
+
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('expiry_date', { ascending: true })
+    
+    if (error) {
+      console.error("Supabase Database Error:", error.message)
+      throw error
+    }
+
+    return (data || []) as Product[]
+  } catch (err: any) {
+    // Catch the "Failed to fetch" network error specifically
+    if (err instanceof TypeError && err.message === 'Failed to fetch') {
+      throw new Error('Network Error: Check your internet or Supabase project status.')
+    }
+    throw err
+  }
+}
+
+export async function deleteProduct(productId: string) {
+  const { error } = await supabase
     .from('products')
-    .select('*')
-    .order('expiry_date', { ascending: true })
+    .delete()
+    .eq('id', productId)
   
-  if (error) throw error
-  return data as Product[]
+  if (error) {
+    if (error.message.includes('JWT')) {
+      throw new Error('JWT_EXPIRED: Session expired.')
+    }
+    throw error
+  }
 }
 
 export async function addProduct(product: {
@@ -69,22 +80,31 @@ export async function addProduct(product: {
   category?: string | null
 }) {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('Not authenticated')
+  if (!user) throw new Error('JWT_EXPIRED: Not authenticated')
   
-  const reminderDate = calculateReminderDate(product.expiry_date)
+  // Simple reminder logic: 7 days before
+  const expiry = new Date(product.expiry_date)
+  const reminderDate = new Date(expiry)
+  reminderDate.setDate(reminderDate.getDate() - 7)
+  
   const status = getProductStatus(product.expiry_date)
   
   const { data, error } = await supabase
     .from('products')
     .insert({
       ...product,
-      reminder_date: reminderDate,
+      reminder_date: reminderDate.toISOString().split('T')[0],
       status,
       added_by: user.id,
     })
     .select()
     .single()
   
-  if (error) throw error
+  if (error) {
+    if (error.message.includes('JWT')) {
+      throw new Error('JWT_EXPIRED: Session expired.')
+    }
+    throw error
+  }
   return data as Product
 }
