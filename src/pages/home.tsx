@@ -261,7 +261,7 @@ export default function HomePage() {
   
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
-              {["all", "safe", "expiring_soon", "expired"].map((s) => (
+              {(["all", "safe", "expiring_soon", "expired"] as const).map((s) => (
                 <Button
                   key={s}
                   variant={filter === s ? "default" : "outline"}

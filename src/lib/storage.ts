@@ -28,7 +28,7 @@ export async function uploadProductPhoto(file: File): Promise<string | null> {
     const filePath = `products/${fileName}`
     
     // Upload to Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('product-photos')
       .upload(filePath, compressedFile)
     
