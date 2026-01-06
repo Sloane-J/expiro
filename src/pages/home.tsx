@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
+import { InstallPrompt } from "@/components/install-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
     AlertDialog,
@@ -192,6 +193,9 @@ export default function HomePage() {
   }
   return (
     <div className="min-h-screen bg-background">
+      {/* Install Prompt */}
+      <InstallPrompt />
+
       <div className="sticky top-0 z-10 bg-background border-b">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
