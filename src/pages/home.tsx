@@ -117,13 +117,37 @@ export default function HomePage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
-
+    // Optimistic update - remove from UI immediately
+    onMutate: async (deletedId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["products"] });
+  
+      // Snapshot the previous value
+      const previousProducts = queryClient.getQueryData(["products"]);
+  
+      // Optimistically update UI
+      queryClient.setQueryData(["products"], (old: any[]) =>
+        old?.filter((product) => product.id !== deletedId)
+      );
+  
+      // Return context with snapshot
+      return { previousProducts };
+    },
+    // On success, just close dialog
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-
       setDeleteDialogOpen(false);
-
       setProductToDelete(null);
+      alert("Product deleted successfully"); // Or use a proper toast
+    },
+    // On error, roll back and show message
+    onError: (err, deletedId, context) => {
+      // Roll back to previous state
+      queryClient.setQueryData(["products"], context?.previousProducts);
+      alert("Failed to delete product. Please try again.");
+    },
+    // Always refetch after error or success
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
     },
   });
 
