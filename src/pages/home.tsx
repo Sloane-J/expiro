@@ -9,7 +9,8 @@ import {
     User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -22,7 +23,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -60,10 +60,8 @@ export default function HomePage() {
   } | null>(null);
 
   // Fetch real name from user_profiles table
-
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
-
     queryFn: async () => {
       const {
         data: { user },
@@ -72,13 +70,9 @@ export default function HomePage() {
       if (!user) return null;
 
       const { data, error } = await supabase
-
         .from("user_profiles")
-
         .select("name")
-
         .eq("id", user.id)
-
         .single();
 
       if (error) return null;
@@ -93,16 +87,12 @@ export default function HomePage() {
     error,
   } = useQuery({
     queryKey: ["products"],
-
     queryFn: getProducts,
-
     staleTime: 30000,
-
     retry: 1,
   });
 
   // Auth Guard: Redirect to login if session is dead
-
   useEffect(() => {
     if (error) {
       const isAuthError =
@@ -137,13 +127,13 @@ export default function HomePage() {
     onSuccess: () => {
       setDeleteDialogOpen(false);
       setProductToDelete(null);
-      alert("Product deleted successfully"); // Or use a proper toast
+      toast.success("Product deleted successfully");
     },
     // On error, roll back and show message
-    onError: (err, deletedId, context) => {
+    onError: (_, __, context) => {
       // Roll back to previous state
       queryClient.setQueryData(["products"], context?.previousProducts);
-      alert("Failed to delete product. Please try again.");
+      toast.error("Failed to delete product. Please try again.");
     },
     // Always refetch after error or success
     onSettled: () => {
@@ -153,7 +143,6 @@ export default function HomePage() {
 
   const handleDeleteClick = (id: string, name: string) => {
     setProductToDelete({ id, name });
-
     setDeleteDialogOpen(true);
   };
 
@@ -185,9 +174,7 @@ export default function HomePage() {
     status: string,
   ): "secondary" | "destructive" | "warning" => {
     if (status === "expired") return "destructive";
-
     if (status === "expiring_soon") return "warning";
-
     return "secondary";
   };
 
@@ -210,11 +197,11 @@ export default function HomePage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-
         <p className="text-muted-foreground text-sm">Loading products...</p>
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Install Prompt */}
@@ -232,11 +219,7 @@ export default function HomePage() {
   
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                >
+                <Button variant="ghost" size="icon" className="h-9 w-9">
                   <Settings className="h-6 w-6" />
                 </Button>
               </DropdownMenuTrigger>

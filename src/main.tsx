@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from '@/components/ui/sonner'
 import { AuthProvider } from "@/lib/auth-context";
 import "./index.css";
 import App from "./App.tsx";
@@ -38,6 +39,7 @@ createRoot(document.getElementById("root")!).render(
 			<ThemeProvider defaultTheme="system" storageKey="expiro-theme">
 				<AuthProvider>
 					<App />
+					<Toaster />
 				</AuthProvider>
 			</ThemeProvider>
 		</QueryClientProvider>
