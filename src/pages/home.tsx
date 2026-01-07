@@ -320,32 +320,29 @@ export default function HomePage() {
                         className="w-14 h-14 rounded object-cover shrink-0"
                       />
                     )}
-  
+                
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate leading-snug">
                         {product.name}
                       </h3>
-  
-                      {product.category && (
-                        <p className="text-xs text-muted-foreground truncate leading-tight">
-                          {product.category}
-                        </p>
-                      )}
-  
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground leading-tight">
-                        <p>
-                          Exp:{" "}
-                          {new Date(product.expiry_date).toLocaleDateString(
-                            "en-GB",
-                          )}
-                        </p>
-  
+                
+                      <p className="font-semibold text-sm text-foreground mt-0.5">
+                        Exp: {new Date(product.expiry_date).toLocaleDateString("en-GB")}
+                      </p>
+                
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
+                        {product.category && (
+                          <p className="truncate">
+                            {product.category}
+                          </p>
+                        )}
+                
                         {product.quantity > 1 && (
                           <p>• Qty: {product.quantity}</p>
                         )}
                       </div>
                     </div>
-  
+                
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge
                         variant={getStatusVariant(status)}
@@ -353,7 +350,7 @@ export default function HomePage() {
                       >
                         {status.replace("_", " ")}
                       </Badge>
-  
+                
                       <Button
                         variant="ghost"
                         size="icon"

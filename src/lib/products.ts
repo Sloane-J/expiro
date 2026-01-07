@@ -29,33 +29,14 @@ export function getProductStatus(expiryDate: string): string {
 }
 
 export async function getProducts() {
-  try {
-    // Check if user is actually logged in
-    const { data: { session }, error: authError } = await supabase.auth.getSession()
-    
-    if (authError || !session) {
-      console.warn("Fetch blocked: No authenticated session found.")
-      throw new Error('JWT_EXPIRED: Please log in to view products')
-    }
-
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('expiry_date', { ascending: true })
-    
-    if (error) {
-      console.error("Supabase Database Error:", error.message)
-      throw error
-    }
-
-    return (data || []) as Product[]
-  } catch (err: any) {
-    // Catch the "Failed to fetch" network error specifically
-    if (err instanceof TypeError && err.message === 'Failed to fetch') {
-      throw new Error('Network Error: Check your internet or Supabase project status.')
-    }
-    throw err
-  }
+  const { data, error } = await supabase
+    .from('products')
+    .select('*')
+    .order('expiry_date', { ascending: true })
+  
+  if (error) throw error
+  
+  return (data || []) as Product[]
 }
 
 export async function deleteProduct(productId: string) {
@@ -64,12 +45,7 @@ export async function deleteProduct(productId: string) {
     .delete()
     .eq('id', productId)
   
-  if (error) {
-    if (error.message.includes('JWT')) {
-      throw new Error('JWT_EXPIRED: Session expired.')
-    }
-    throw error
-  }
+  if (error) throw error
 }
 
 export async function addProduct(product: {
@@ -80,7 +56,7 @@ export async function addProduct(product: {
   category?: string | null
 }) {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) throw new Error('JWT_EXPIRED: Not authenticated')
+  if (!user) throw new Error('Not authenticated')
   
   // Simple reminder logic: 7 days before
   const expiry = new Date(product.expiry_date)
@@ -100,11 +76,7 @@ export async function addProduct(product: {
     .select()
     .single()
   
-  if (error) {
-    if (error.message.includes('JWT')) {
-      throw new Error('JWT_EXPIRED: Session expired.')
-    }
-    throw error
-  }
+  if (error) throw error
+  
   return data as Product
 }
