@@ -9,7 +9,8 @@ import {
     User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-
+import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -22,7 +23,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useNavigate } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 
@@ -60,10 +60,8 @@ export default function HomePage() {
   } | null>(null);
 
   // Fetch real name from user_profiles table
-
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
-
     queryFn: async () => {
       const {
         data: { user },
@@ -72,13 +70,9 @@ export default function HomePage() {
       if (!user) return null;
 
       const { data, error } = await supabase
-
         .from("user_profiles")
-
         .select("name")
-
         .eq("id", user.id)
-
         .single();
 
       if (error) return null;
@@ -93,16 +87,12 @@ export default function HomePage() {
     error,
   } = useQuery({
     queryKey: ["products"],
-
     queryFn: getProducts,
-
     staleTime: 30000,
-
     retry: 1,
   });
 
   // Auth Guard: Redirect to login if session is dead
-
   useEffect(() => {
     if (error) {
       const isAuthError =
@@ -117,19 +107,42 @@ export default function HomePage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
-
+    // Optimistic update - remove from UI immediately
+    onMutate: async (deletedId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["products"] });
+  
+      // Snapshot the previous value
+      const previousProducts = queryClient.getQueryData(["products"]);
+  
+      // Optimistically update UI
+      queryClient.setQueryData(["products"], (old: any[]) =>
+        old?.filter((product) => product.id !== deletedId)
+      );
+  
+      // Return context with snapshot
+      return { previousProducts };
+    },
+    // On success, just close dialog
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["products"] });
-
       setDeleteDialogOpen(false);
-
       setProductToDelete(null);
+      toast.success("Product deleted successfully");
+    },
+    // On error, roll back and show message
+    onError: (_, __, context) => {
+      // Roll back to previous state
+      queryClient.setQueryData(["products"], context?.previousProducts);
+      toast.error("Failed to delete product. Please try again.");
+    },
+    // Always refetch after error or success
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["products"] });
     },
   });
 
   const handleDeleteClick = (id: string, name: string) => {
     setProductToDelete({ id, name });
-
     setDeleteDialogOpen(true);
   };
 
@@ -161,9 +174,7 @@ export default function HomePage() {
     status: string,
   ): "secondary" | "destructive" | "warning" => {
     if (status === "expired") return "destructive";
-
     if (status === "expiring_soon") return "warning";
-
     return "secondary";
   };
 
@@ -186,11 +197,11 @@ export default function HomePage() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
-
         <p className="text-muted-foreground text-sm">Loading products...</p>
       </div>
     );
   }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Install Prompt */}
@@ -208,11 +219,7 @@ export default function HomePage() {
   
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9"
-                >
+                <Button variant="ghost" size="icon" className="h-9 w-9">
                   <Settings className="h-6 w-6" />
                 </Button>
               </DropdownMenuTrigger>
@@ -296,32 +303,29 @@ export default function HomePage() {
                         className="w-14 h-14 rounded object-cover shrink-0"
                       />
                     )}
-  
+                
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate leading-snug">
                         {product.name}
                       </h3>
-  
-                      {product.category && (
-                        <p className="text-xs text-muted-foreground truncate leading-tight">
-                          {product.category}
-                        </p>
-                      )}
-  
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground leading-tight">
-                        <p>
-                          Exp:{" "}
-                          {new Date(product.expiry_date).toLocaleDateString(
-                            "en-GB",
-                          )}
-                        </p>
-  
+                
+                      <p className="font-semibold text-sm text-foreground mt-0.5">
+                        Exp: {new Date(product.expiry_date).toLocaleDateString("en-GB")}
+                      </p>
+                
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
+                        {product.category && (
+                          <p className="truncate">
+                            {product.category}
+                          </p>
+                        )}
+                
                         {product.quantity > 1 && (
                           <p>• Qty: {product.quantity}</p>
                         )}
                       </div>
                     </div>
-  
+                
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge
                         variant={getStatusVariant(status)}
@@ -329,7 +333,7 @@ export default function HomePage() {
                       >
                         {status.replace("_", " ")}
                       </Badge>
-  
+                
                       <Button
                         variant="ghost"
                         size="icon"
