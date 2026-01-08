@@ -16,38 +16,36 @@ export type Product = {
 export function calculateReminderDate(expiryDate: string): string {
   const expiry = new Date(expiryDate)
   const today = new Date()
+  today.setHours(0, 0, 0, 0) // Reset time for accurate day comparison
   
   const daysUntilExpiry = Math.floor(
     (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
   )
   
-  // Default: 90 days before expiry
-  let reminderDate = new Date(expiry)
-  reminderDate.setDate(reminderDate.getDate() - 90)
-  
-  // If expiry < 90 days away, remind 7 days before
-  if (daysUntilExpiry < 90) {
-    reminderDate = new Date(expiry)
-    reminderDate.setDate(reminderDate.getDate() - 7)
+  // If expiry > 90 days away: remind 90 days before
+  if (daysUntilExpiry > 90) {
+    const reminderDate = new Date(expiry)
+    reminderDate.setDate(reminderDate.getDate() - 90)
+    return reminderDate.toISOString().split('T')[0]
   }
   
-  // If reminder already passed, set to today
-  if (reminderDate < today) {
-    return today.toISOString().split('T')[0]
-  }
-  
-  return reminderDate.toISOString().split('T')[0]
+  // If expiry <= 90 days away OR already expired: remind TODAY
+  return today.toISOString().split('T')[0]
 }
 
 export function getProductStatus(expiryDate: string): string {
   const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
   const expiry = new Date(expiryDate)
+  expiry.setHours(0, 0, 0, 0)
+  
   const daysUntilExpiry = Math.floor(
     (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
   )
   
   if (daysUntilExpiry < 0) return 'expired'
-  if (daysUntilExpiry <= 30) return 'expiring_soon'
+  if (daysUntilExpiry <= 90) return 'expiring_soon'
   return 'safe'
 }
 
