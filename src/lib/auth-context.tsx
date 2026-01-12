@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import type React from "react";
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "./supabase";
 
@@ -21,8 +22,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		const checkSession = async () => {
 			try {
 				// getUser() validates JWT with server
-				const { data: { user }, error } = await supabase.auth.getUser();
-				
+				const {
+					data: { user },
+					error,
+				} = await supabase.auth.getUser();
+
 				if (error || !user) {
 					// JWT is invalid/expired
 					await supabase.auth.signOut();
@@ -45,9 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 		const {
 			data: { subscription },
 		} = supabase.auth.onAuthStateChange(async (event, session) => {
-			if (event === 'SIGNED_OUT' || !session) {
+			if (event === "SIGNED_OUT" || !session) {
 				setUser(null);
-			} else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+			} else if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
 				setUser(session.user);
 			}
 		});
