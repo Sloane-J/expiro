@@ -41,7 +41,7 @@ import { signOut } from "@/lib/auth";
 import { deleteProduct, getProductStatus, getProducts } from "@/lib/products";
 import { supabase } from "@/lib/supabase";
 
-type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
+type FilterStatus = "all" | "safe" | "expiring_soon" | "urgent" | "expired";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -159,23 +159,32 @@ export default function HomePage() {
     
     switch (status) {
       case "safe":
-        return "border-transparent bg-[#27746a] text-white hover:opacity-90";
+        return "border-transparent bg-status-safe text-status-safe-fg hover:opacity-90";
       case "expiring_soon":
-        return "border-transparent bg-[#fd8d35] text-white hover:opacity-90";
+        return "border-transparent bg-status-expiring text-status-expiring-fg hover:opacity-90";
+      case "urgent":
+        return "border-transparent bg-status-urgent text-status-urgent-fg hover:opacity-90";
       case "expired":
-        return "border-transparent bg-[#ec5c54] text-white hover:opacity-90";
+        return "border-transparent bg-status-expired text-status-expired-fg hover:opacity-90";
       case "all":
       default:
         return "border-transparent bg-primary text-primary-foreground hover:bg-primary/90";
     }
   };
 
-  const getStatusVariant = (
-    status: string,
-  ): "secondary" | "destructive" | "warning" => {
-    if (status === "expired") return "destructive";
-    if (status === "expiring_soon") return "warning";
-    return "secondary";
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "safe":
+        return "bg-status-safe text-status-safe-fg border-status-safe-fg/20";
+      case "expiring_soon":
+        return "bg-status-expiring text-status-expiring-fg border-status-expiring-fg/20";
+      case "urgent":
+        return "bg-status-urgent text-status-urgent-fg border-status-urgent-fg/20";
+      case "expired":
+        return "bg-status-expired text-status-expired-fg border-status-expired-fg/20";
+      default:
+        return "bg-secondary text-secondary-foreground";
+    }
   };
 
   const filteredProducts = useMemo(() => {
@@ -268,7 +277,7 @@ export default function HomePage() {
   
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
-              {(["all", "safe", "expiring_soon", "expired"] as const).map((s) => (
+              {(["all", "safe", "expiring_soon", "urgent", "expired"] as const).map((s) => (
                 <Button
                   key={s}
                   variant={filter === s ? "default" : "outline"}
@@ -328,8 +337,7 @@ export default function HomePage() {
                 
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge
-                        variant={getStatusVariant(status)}
-                        className="text-[10px] rounded-full px-2"
+                        className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
                       >
                         {status.replace("_", " ")}
                       </Badge>
