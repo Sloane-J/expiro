@@ -67,7 +67,17 @@ export async function getProducts() {
     .order('expiry_date', { ascending: true })
   
   if (error) throw error
-  return data as Product[]
+  
+  return (data || []) as Product[]
+}
+
+export async function deleteProduct(productId: string) {
+  const { error } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', productId)
+  
+  if (error) throw error
 }
 
 // ===== Check for Duplicate Product =====
