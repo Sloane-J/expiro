@@ -18,7 +18,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 // Constants
 const BATCH_SIZE = 30
 const RATE_LIMIT = 95
-const BATCH_DELAY_MS = 3600000
+const BATCH_DELAY_MS = 0
 
 serve(async () => {
   console.log("🚀 Cron run started")
