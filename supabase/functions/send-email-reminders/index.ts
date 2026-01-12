@@ -21,6 +21,12 @@ const RATE_LIMIT = 95
 const BATCH_DELAY_MS = 3600000
 
 serve(async () => {
+  console.log("🚀 Cron run started")
+    console.log("RESEND_API_KEY present?", !!RESEND_API_KEY)
+    console.log("SUPABASE_URL present?", !!SUPABASE_URL)
+    console.log("SUPABASE_SERVICE_ROLE_KEY present?", !!SUPABASE_SERVICE_ROLE_KEY)
+
+  
   try {
     console.log('🚀 Starting daily reminder check...')
 
