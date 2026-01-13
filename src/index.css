@@ -51,6 +51,16 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Product Status Colors */
+  --color-status-safe: var(--status-safe);
+  --color-status-safe-fg: var(--status-safe-fg);
+  --color-status-expiring: var(--status-expiring);
+  --color-status-expiring-fg: var(--status-expiring-fg);
+  --color-status-urgent: var(--status-urgent);
+  --color-status-urgent-fg: var(--status-urgent-fg);
+  --color-status-expired: var(--status-expired);
+  --color-status-expired-fg: var(--status-expired-fg);
 }
 
 :root {
@@ -86,6 +96,23 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Product Status Colors - Light Mode */
+  /* Safe: 90+ days - Green */
+  --status-safe: oklch(0.95 0.05 145);
+  --status-safe-fg: oklch(0.35 0.15 145);
+  
+  /* Expiring Soon: 8-90 days - Orange */
+  --status-expiring: oklch(0.95 0.08 65);
+  --status-expiring-fg: oklch(0.45 0.15 55);
+  
+  /* Urgent: 0-7 days - Red-Orange (darker, vibrant) */
+  --status-urgent: oklch(0.94 0.10 40);
+  --status-urgent-fg: oklch(0.45 0.20 30);
+  
+  /* Expired: Past date - Red */
+  --status-expired: oklch(0.95 0.12 25);
+  --status-expired-fg: oklch(0.45 0.20 25);
 }
 
 .dark {
@@ -120,6 +147,23 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Product Status Colors - Dark Mode */
+  /* Safe: 90+ days - Green */
+  --status-safe: oklch(0.25 0.10 145);
+  --status-safe-fg: oklch(0.75 0.12 145);
+  
+  /* Expiring Soon: 8-90 days - Orange */
+  --status-expiring: oklch(0.30 0.12 65);
+  --status-expiring-fg: oklch(0.85 0.15 55);
+  
+  /* Urgent: 0-7 days - Red-Orange (bright, attention-grabbing) */
+  --status-urgent: oklch(0.55 0.20 35);
+  --status-urgent-fg: oklch(1 0 0);
+  
+  /* Expired: Past date - Red */
+  --status-expired: oklch(0.30 0.15 25);
+  --status-expired-fg: oklch(0.85 0.18 25);
 }
 
 @layer base {
