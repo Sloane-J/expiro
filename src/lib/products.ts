@@ -33,12 +33,7 @@ export function calculateReminderDate(expiryDate: string): string {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   
-  // Already expired or expires within 7 days → remind TODAY (urgent)
-  if (daysUntilExpiry <= 7) {
-    return today.toISOString().split('T')[0]
-  }
-  
-  // Expires in 8-90 days → remind TODAY (start planning)
+  // Already expired or expires within 90 days → remind TODAY
   if (daysUntilExpiry <= 90) {
     return today.toISOString().split('T')[0]
   }
@@ -54,8 +49,7 @@ export function getProductStatus(expiryDate: string): string {
   const daysUntilExpiry = getDaysUntilExpiry(expiryDate)
   
   if (daysUntilExpiry < 0) return 'expired'        // Past expiry - remove from shelf
-  if (daysUntilExpiry <= 7) return 'urgent'        // 0-7 days - heavy discount/promote
-  if (daysUntilExpiry <= 90) return 'expiring_soon' // 8-90 days - start planning
+  if (daysUntilExpiry <= 90) return 'expiring_soon' // 0-90 days - discount/promote/plan
   return 'safe'                                     // 90+ days - no action needed
 }
 
@@ -128,9 +122,9 @@ export async function addProduct(product: {
   }
   
   // 4. Warn if expiry is very far in future (possible typo)
-  if (daysUntilExpiry > 730) { // 2 years
-    warningMessage = `⚠️ Warning: Product expires more than 2 years from now. Please verify the expiry date.`
-  }
+  // if (daysUntilExpiry > 730) { // 2 years
+  //   warningMessage = `⚠️ Warning: Product expires more than 2 years from now. Please verify the expiry date.`
+  // }
   
   // 5. Get authenticated user
   const { data: { user } } = await supabase.auth.getUser()
