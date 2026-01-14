@@ -41,7 +41,7 @@ import { signOut } from "@/lib/auth";
 import { deleteProduct, getProductStatus, getProducts } from "@/lib/products";
 import { supabase } from "@/lib/supabase";
 
-type FilterStatus = "all" | "safe" | "expiring_soon" | "urgent" | "expired";
+type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
 
 export default function HomePage() {
   const navigate = useNavigate();
@@ -162,8 +162,6 @@ export default function HomePage() {
         return "border-transparent bg-status-safe text-status-safe-fg hover:opacity-90";
       case "expiring_soon":
         return "border-transparent bg-status-expiring text-status-expiring-fg hover:opacity-90";
-      case "urgent":
-        return "border-transparent bg-status-urgent text-status-urgent-fg hover:opacity-90";
       case "expired":
         return "border-transparent bg-status-expired text-status-expired-fg hover:opacity-90";
       case "all":
@@ -178,8 +176,6 @@ export default function HomePage() {
         return "bg-status-safe text-status-safe-fg border-status-safe-fg/20";
       case "expiring_soon":
         return "bg-status-expiring text-status-expiring-fg border-status-expiring-fg/20";
-      case "urgent":
-        return "bg-status-urgent text-status-urgent-fg border-status-urgent-fg/20";
       case "expired":
         return "bg-status-expired text-status-expired-fg border-status-expired-fg/20";
       default:
@@ -277,7 +273,7 @@ export default function HomePage() {
   
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
-              {(["all", "safe", "expiring_soon", "urgent", "expired"] as const).map((s) => (
+              {(["all", "safe", "expiring_soon", "expired"] as const).map((s) => (
                 <Button
                   key={s}
                   variant={filter === s ? "default" : "outline"}
