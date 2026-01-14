@@ -255,7 +255,7 @@ export default function HomePage() {
           </div>
   
           <div className="mt-6">
-            <h1 className="text-xl font-md tracking-tighter">
+            <h1 className="text-xl font-bold tracking-tighter">
               Inventory
             </h1>
           </div>
