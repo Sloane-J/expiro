@@ -2,7 +2,6 @@ import 'https://deno.land/x/dotenv/load.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
@@ -12,8 +11,6 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RESEND_API_KEY) {
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-// Constants
 const RATE_LIMIT = 95
 
 serve(async () => {
@@ -42,11 +39,10 @@ serve(async () => {
       )
     }
 
-    // === STEP 2: Calculate Days Until Expiry for All Products ===
+    // === STEP 2: Get All Products and Calculate Days Once ===
     const todayDate = new Date()
     todayDate.setHours(0, 0, 0, 0)
 
-    // Fetch all products
     const { data: allProducts, error: productsError } = await supabase
       .from('products')
       .select('id, name, expiry_date, category, quantity, status, photo_url')
@@ -54,8 +50,8 @@ serve(async () => {
 
     if (productsError) throw productsError
 
-    // Filter products at exact milestone days (90, 60, 30, 7, 0)
-    const productsToAlert = allProducts?.filter(product => {
+    // Calculate daysUntilExpiry ONCE for each product
+    const productsWithDays = allProducts?.map(product => {
       const expiryDate = new Date(product.expiry_date)
       expiryDate.setHours(0, 0, 0, 0)
       
@@ -63,15 +59,26 @@ serve(async () => {
         (expiryDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)
       )
 
-      // Alert at exact milestones: 90, 60, 30, 7, or 0 (expired today)
-      return daysUntilExpiry === 90 || 
-             daysUntilExpiry === 60 || 
-             daysUntilExpiry === 30 || 
-             daysUntilExpiry === 7 || 
-             daysUntilExpiry === 0
+      return {
+        ...product,
+        daysUntilExpiry
+      }
     }) || []
 
-    console.log(`📦 Products at milestone dates: ${productsToAlert.length}`)
+    // Filter products by ranges using the calculated daysUntilExpiry
+    const productsToAlert = productsWithDays.filter(product => {
+      const days = product.daysUntilExpiry
+
+      return (
+        days <= 0 ||                          // Expired
+        (days >= 5 && days <= 9) ||          // 7-day range
+        (days >= 27 && days <= 33) ||        // 30-day range
+        (days >= 57 && days <= 63) ||        // 60-day range
+        (days >= 87 && days <= 93)           // 90-day range
+      )
+    })
+
+    console.log(`📦 Products in alert ranges: ${productsToAlert.length}`)
 
     if (productsToAlert.length === 0) {
       return new Response(
@@ -80,36 +87,34 @@ serve(async () => {
       )
     }
 
-    // === STEP 3: Group Products by Milestone ===
-    const todayMidnight = new Date()
-    todayMidnight.setHours(0, 0, 0, 0)
-
+    // === STEP 3: Group Products by Milestone Ranges (using same daysUntilExpiry) ===
     const groupedProducts = {
-      expired: [] as any[],       // 0 days (expired today)
-      sevenDays: [] as any[],     // 7 days
-      thirtyDays: [] as any[],    // 30 days
-      sixtyDays: [] as any[],     // 60 days
-      ninetyDays: [] as any[]     // 90 days
+      expired: [] as any[],
+      sevenDays: [] as any[],
+      thirtyDays: [] as any[],
+      sixtyDays: [] as any[],
+      ninetyDays: [] as any[]
     }
 
     productsToAlert.forEach(product => {
-      const expiryDate = new Date(product.expiry_date)
-      expiryDate.setHours(0, 0, 0, 0)
-      
-      const daysUntilExpiry = Math.floor(
-        (expiryDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      const days = product.daysUntilExpiry
 
-      if (daysUntilExpiry === 0) groupedProducts.expired.push(product)
-      else if (daysUntilExpiry === 7) groupedProducts.sevenDays.push(product)
-      else if (daysUntilExpiry === 30) groupedProducts.thirtyDays.push(product)
-      else if (daysUntilExpiry === 60) groupedProducts.sixtyDays.push(product)
-      else if (daysUntilExpiry === 90) groupedProducts.ninetyDays.push(product)
+      if (days <= 0) {
+        groupedProducts.expired.push(product)
+      } else if (days >= 5 && days <= 9) {
+        groupedProducts.sevenDays.push(product)
+      } else if (days >= 27 && days <= 33) {
+        groupedProducts.thirtyDays.push(product)
+      } else if (days >= 57 && days <= 63) {
+        groupedProducts.sixtyDays.push(product)
+      } else if (days >= 87 && days <= 93) {
+        groupedProducts.ninetyDays.push(product)
+      }
     })
 
     console.log(`📊 Grouped - Expired: ${groupedProducts.expired.length}, 7d: ${groupedProducts.sevenDays.length}, 30d: ${groupedProducts.thirtyDays.length}, 60d: ${groupedProducts.sixtyDays.length}, 90d: ${groupedProducts.ninetyDays.length}`)
 
-    // === STEP 4: Get All Users ===
+    // === STEP 4: Get ALL Users ===
     const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
     if (authError) throw authError
 
@@ -124,7 +129,7 @@ serve(async () => {
       displayName: profileMap.get(u.id) || 'there'
     }))
 
-    console.log(`👥 Active users: ${allUsers.length}`)
+    console.log(`👥 Sending to ALL users: ${allUsers.length}`)
 
     if (allUsers.length === 0) {
       return new Response(
@@ -133,15 +138,15 @@ serve(async () => {
       )
     }
 
-    // === STEP 5: Send One Batch Email to All Users ===
+    // === STEP 5: Send Email to EVERY User ===
     const results = []
+    const totalProducts = productsToAlert.length
 
     for (const user of allUsers) {
       try {
-        const emailHtml = generateEmailHtml(groupedProducts, user.displayName)
+        const emailHtml = generateEmailHtml(groupedProducts, user.displayName, totalProducts)
 
-        const totalProducts = productsToAlert.length
-        const subject = `⚠️ Daily Expiry Alert - ${totalProducts} product${totalProducts > 1 ? 's' : ''} need attention`
+        const subject = `Expiro - Daily Expiry Alert - ${totalProducts} product${totalProducts > 1 ? 's' : ''} need attention`
 
         const emailResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -181,7 +186,7 @@ serve(async () => {
           user_id: user.id,
           type: 'email',
           status: 'failed',
-          products_count: productsToAlert.length,
+          products_count: totalProducts,
           error_message: error.message,
         })
       }
@@ -189,9 +194,10 @@ serve(async () => {
 
     return new Response(
       JSON.stringify({
-        message: `Sent ${results.length} reminder emails`,
-        total_products: productsToAlert.length,
+        message: `Sent ${results.length} reminder emails to ALL users`,
+        total_products: totalProducts,
         total_users: allUsers.length,
+        sent_to: results.length,
         results,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -206,10 +212,8 @@ serve(async () => {
   }
 })
 
-// === Generate Email HTML ===
-function generateEmailHtml(groupedProducts: any, name: string): string {
+function generateEmailHtml(groupedProducts: any, name: string, totalProducts: number): string {
   const { expired, sevenDays, thirtyDays, sixtyDays, ninetyDays } = groupedProducts
-  const totalProducts = expired.length + sevenDays.length + thirtyDays.length + sixtyDays.length + ninetyDays.length
 
   return `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -237,7 +241,6 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
       <td align="center" style="padding:40px 20px;">
         <table class="container" role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background-color:#F8F8F8;border-radius:0;">
           
-          <!-- Header -->
           <tr>
             <td style="padding:40px 40px 0 40px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -260,7 +263,6 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
             </td>
           </tr>
 
-          <!-- Greeting -->
           <tr>
             <td style="padding:30px 40px 0 40px;">
               <h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:28px;font-weight:700;color:#333333;">
@@ -269,16 +271,14 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
             </td>
           </tr>
           
-          <!-- Description -->
           <tr>
             <td style="padding:15px 40px 0 40px;">
               <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;line-height:24px;color:#4A4A4A;">
-                Your daily inventory report is ready. We've identified <strong>${totalProducts} items</strong> that need your attention to minimize waste and ensure product safety.
+                Your daily inventory report is ready. We've identified <strong>${totalProducts} item${totalProducts > 1 ? 's' : ''}</strong> that need your attention to minimize waste and ensure product safety.
               </p>
             </td>
           </tr>
 
-          <!-- CTA Button -->
           <tr>
             <td style="padding:25px 40px 0 40px;">
               <table role="presentation" cellpadding="0" cellspacing="0">
@@ -293,7 +293,6 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
             </td>
           </tr>
 
-          <!-- Product Sections -->
           <tr>
             <td style="padding:30px 40px;">
               
@@ -302,7 +301,7 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#D32F2F;text-transform:uppercase;">
-                      EXPIRED TODAY (${expired.length})
+                      EXPIRED (${expired.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
                       Remove immediately from shelves
@@ -318,14 +317,14 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#F57C00;text-transform:uppercase;">
-                      7 DAYS UNTIL EXPIRY (${sevenDays.length})
+                      ~7 DAYS UNTIL EXPIRY (${sevenDays.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
                       Apply discounts and promote heavily
                     </p>
                   </td>
                 </tr>
-                ${sevenDays.map(p => generateProductCard(p, '7 DAYS', '#FFA726')).join('')}
+                ${sevenDays.map(p => generateProductCard(p, '~7 DAYS', '#FFA726')).join('')}
               </table>
               ` : ''}
 
@@ -334,14 +333,14 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#F57C00;text-transform:uppercase;">
-                      30 DAYS UNTIL EXPIRY (${thirtyDays.length})
+                      ~30 DAYS UNTIL EXPIRY (${thirtyDays.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
                       Start planning promotions
                     </p>
                   </td>
                 </tr>
-                ${thirtyDays.map(p => generateProductCard(p, '30 DAYS', '#FFA726')).join('')}
+                ${thirtyDays.map(p => generateProductCard(p, '~30 DAYS', '#FFA726')).join('')}
               </table>
               ` : ''}
 
@@ -350,14 +349,14 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#388E3C;text-transform:uppercase;">
-                      60 DAYS UNTIL EXPIRY (${sixtyDays.length})
+                      ~60 DAYS UNTIL EXPIRY (${sixtyDays.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
                       Monitor inventory levels
                     </p>
                   </td>
                 </tr>
-                ${sixtyDays.map(p => generateProductCard(p, '60 DAYS', '#4CAF50')).join('')}
+                ${sixtyDays.map(p => generateProductCard(p, '~60 DAYS', '#4CAF50')).join('')}
               </table>
               ` : ''}
 
@@ -366,21 +365,20 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#388E3C;text-transform:uppercase;">
-                      90 DAYS UNTIL EXPIRY (${ninetyDays.length})
+                      ~90 DAYS UNTIL EXPIRY (${ninetyDays.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
                       Plan ahead for stock rotation
                     </p>
                   </td>
                 </tr>
-                ${ninetyDays.map(p => generateProductCard(p, '90 DAYS', '#4CAF50')).join('')}
+                ${ninetyDays.map(p => generateProductCard(p, '~90 DAYS', '#4CAF50')).join('')}
               </table>
               ` : ''}
 
             </td>
           </tr>
 
-          <!-- Recommendations -->
           <tr>
             <td style="padding:0 40px 40px 40px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEF;">
@@ -428,9 +426,8 @@ function generateEmailHtml(groupedProducts: any, name: string): string {
   `
 }
 
-// === Generate Product Card ===
 function generateProductCard(product: any, statusLabel: string, statusColor: string): string {
-  const statusTextColor = statusLabel === '7 DAYS' || statusLabel === '30 DAYS' ? '#000000' : '#FFFFFF'
+  const statusTextColor = statusLabel.includes('~7') || statusLabel.includes('~30') ? '#000000' : '#FFFFFF'
 
   return `
     <tr>
@@ -472,7 +469,6 @@ function generateProductCard(product: any, statusLabel: string, statusColor: str
   `
 }
 
-// === Format Date: "23 Jan 2026" ===
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
   return date.toLocaleDateString('en-GB', {
@@ -482,7 +478,6 @@ function formatDate(dateString: string): string {
   })
 }
 
-// === Format Date with Time: "Wednesday, January 14, 2026 at 8:30 AM" ===
 function formatDateLong(date: Date): string {
   const datePart = date.toLocaleDateString('en-US', {
     weekday: 'long',
