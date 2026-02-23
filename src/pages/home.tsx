@@ -1,65 +1,66 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    Loader2,
-    LogOut,
-    Plus,
-    Search,
-    Settings,
-    Trash2,
-    User,
+  Loader2,
+  LogOut,
+  Package,
+  Plus,
+  RefreshCw,
+  Search,
+  SearchX,
+  Settings,
+  Trash2,
+  User,
+  WifiOff,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
 import { Badge } from "@/components/ui/badge";
-
 import { Button } from "@/components/ui/button";
-
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { signOut } from "@/lib/auth";
 import { deleteProduct, getProductStatus, getProducts } from "@/lib/products";
 import { supabase } from "@/lib/supabase";
 
-type FilterStatus = "all" | "safe" | "expiring_soon" | "urgent" | "expired";
+type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
 
 export default function HomePage() {
   const navigate = useNavigate();
-
   const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<FilterStatus>("all");
-
   const [searchQuery, setSearchQuery] = useState("");
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
   const [productToDelete, setProductToDelete] = useState<{
     id: string;
     name: string;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const touchCurrentY = useRef(0);
+  const PULL_THRESHOLD = 80;
 
-  // Fetch real name from user_profiles table
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
     queryFn: async () => {
@@ -92,7 +93,6 @@ export default function HomePage() {
     retry: 1,
   });
 
-  // Auth Guard: Redirect to login if session is dead
   useEffect(() => {
     if (error) {
       const isAuthError =
@@ -107,35 +107,23 @@ export default function HomePage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
-    // Optimistic update - remove from UI immediately
     onMutate: async (deletedId) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["products"] });
-  
-      // Snapshot the previous value
       const previousProducts = queryClient.getQueryData(["products"]);
-  
-      // Optimistically update UI
       queryClient.setQueryData(["products"], (old: any[]) =>
-        old?.filter((product) => product.id !== deletedId)
+        old?.filter((product) => product.id !== deletedId),
       );
-  
-      // Return context with snapshot
       return { previousProducts };
     },
-    // On success, just close dialog
     onSuccess: () => {
       setDeleteDialogOpen(false);
       setProductToDelete(null);
       toast.success("Product deleted successfully");
     },
-    // On error, roll back and show message
     onError: (_, __, context) => {
-      // Roll back to previous state
       queryClient.setQueryData(["products"], context?.previousProducts);
       toast.error("Failed to delete product. Please try again.");
     },
-    // Always refetch after error or success
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
@@ -151,19 +139,42 @@ export default function HomePage() {
       deleteMutation.mutate(productToDelete.id);
     }
   };
-  
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["products"] });
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchCurrentY.current = e.touches[0].clientY;
+    const distance = touchCurrentY.current - touchStartY.current;
+    if (distance > 0 && window.scrollY === 0) {
+      setPullDistance(Math.min(distance, PULL_THRESHOLD + 20));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= PULL_THRESHOLD) {
+      handleRefresh();
+    }
+    setPullDistance(0);
+  };
+
   const getFilterColor = (status: string, isActive: boolean) => {
     if (!isActive) {
       return "border-border bg-background text-foreground hover:bg-accent";
     }
-    
     switch (status) {
       case "safe":
         return "border-transparent bg-status-safe text-status-safe-fg hover:opacity-90";
       case "expiring_soon":
         return "border-transparent bg-status-expiring text-status-expiring-fg hover:opacity-90";
-      case "urgent":
-        return "border-transparent bg-status-urgent text-status-urgent-fg hover:opacity-90";
       case "expired":
         return "border-transparent bg-status-expired text-status-expired-fg hover:opacity-90";
       case "all":
@@ -178,8 +189,6 @@ export default function HomePage() {
         return "bg-status-safe text-status-safe-fg border-status-safe-fg/20";
       case "expiring_soon":
         return "bg-status-expiring text-status-expiring-fg border-status-expiring-fg/20";
-      case "urgent":
-        return "bg-status-urgent text-status-urgent-fg border-status-urgent-fg/20";
       case "expired":
         return "bg-status-expired text-status-expired-fg border-status-expired-fg/20";
       default:
@@ -191,13 +200,11 @@ export default function HomePage() {
     return products?.filter((product) => {
       const matchesFilter =
         filter === "all" || getProductStatus(product.expiry_date) === filter;
-
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (product.category?.toLowerCase() || "").includes(
           searchQuery.toLowerCase(),
         );
-
       return matchesFilter && matchesSearch;
     });
   }, [products, filter, searchQuery]);
@@ -211,9 +218,30 @@ export default function HomePage() {
     );
   }
 
+  if (error && !isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <div className="rounded-full bg-muted p-6 mb-2">
+          <WifiOff className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold">Something went wrong</h2>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Could not load products. Check your connection and try again.
+        </p>
+        <Button
+          onClick={() =>
+            queryClient.invalidateQueries({ queryKey: ["products"] })
+          }
+          className="rounded-full px-6 mt-2"
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
-      {/* Install Prompt */}
       <InstallPrompt />
 
       <div className="sticky top-0 z-10 bg-background border-b">
@@ -225,30 +253,30 @@ export default function HomePage() {
                 {profile?.name || "User"}
               </span>
             </p>
-  
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9">
                   <Settings className="h-6 w-6" />
                 </Button>
               </DropdownMenuTrigger>
-  
+
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="mr-2 h-4 w-4" /> Profile
                 </DropdownMenuItem>
-  
+
                 <div className="flex items-center justify-between px-2 py-1.5 text-sm">
                   <span>Theme</span>
                   <ThemeToggle />
                 </div>
-  
+
                 <DropdownMenuSeparator />
-  
+
                 <DropdownMenuItem
                   onClick={async () => {
-                    await signOut()
-                    navigate("/login")
+                    await signOut();
+                    navigate("/login");
                   }}
                   className="text-destructive font-semibold"
                 >
@@ -257,13 +285,11 @@ export default function HomePage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-  
+
           <div className="mt-6">
-            <h1 className="text-xl font-md tracking-tighter">
-              Inventory
-            </h1>
+            <h1 className="text-xl font-bold tracking-tighter">Inventory</h1>
           </div>
-  
+
           <div className="relative mt-3">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -274,30 +300,106 @@ export default function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-  
+
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
-              {(["all", "safe", "expiring_soon", "urgent", "expired"] as const).map((s) => (
-                <Button
-                  key={s}
-                  variant={filter === s ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilter(s)}
-                  className={`shrink-0 font-medium text-xs rounded-full whitespace-nowrap px-3 py-1 transition-all ${getFilterColor(s, filter === s)}`}
-                >
-                  {s.replace("_", " ")}
-                </Button>
-              ))}
+              {(["all", "safe", "expiring_soon", "expired"] as const).map(
+                (s) => (
+                  <Button
+                    key={s}
+                    variant={filter === s ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilter(s)}
+                    className={`shrink-0 font-medium text-xs rounded-full whitespace-nowrap px-3 py-1 transition-all ${getFilterColor(s, filter === s)}`}
+                  >
+                    {s.replace("_", " ")}
+                  </Button>
+                ),
+              )}
             </div>
           )}
         </div>
       </div>
-  
-      <div className="p-4 max-w-2xl mx-auto pb-20">
+
+      <div
+        className="p-4 max-w-2xl mx-auto pb-20"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to refresh indicator */}
+        {pullDistance > 10 && (
+          <div
+            className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2 transition-all"
+            style={{ height: `${Math.min(pullDistance, PULL_THRESHOLD)}px` }}
+          >
+            <RefreshCw
+              className={`h-4 w-4 transition-transform ${
+                pullDistance >= PULL_THRESHOLD ? "text-primary rotate-180" : ""
+              }`}
+            />
+            <span>
+              {pullDistance >= PULL_THRESHOLD
+                ? "Release to refresh"
+                : "Pull to refresh"}
+            </span>
+          </div>
+        )}
+
+        {isRefreshing && (
+          <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Refreshing...</span>
+          </div>
+        )}
+
         <div className="space-y-2">
+          {/* Empty state: no products at all */}
+          {products?.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+              <div className="rounded-full bg-muted p-6 mb-4">
+                <Package className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-semibold mb-1">No products yet</h2>
+              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                Start tracking expiry dates by adding your first product.
+              </p>
+              <Button
+                onClick={() => navigate("/add-product")}
+                className="rounded-full px-6"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Add First Product
+              </Button>
+            </div>
+          )}
+
+          {/* Empty state: has products but filter/search returns nothing */}
+          {(products?.length ?? 0) > 0 && filteredProducts?.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+              <div className="rounded-full bg-muted p-6 mb-4">
+                <SearchX className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-semibold mb-1">No results found</h2>
+              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                No products match your current search or filter.
+              </p>
+              <Button
+                variant="outline"
+                className="rounded-full px-6"
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilter("all");
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          )}
+
+          {/* Product list */}
           {filteredProducts?.map((product) => {
-            const status = getProductStatus(product.expiry_date)
-  
+            const status = getProductStatus(product.expiry_date);
+
             return (
               <Card
                 key={product.id}
@@ -312,36 +414,36 @@ export default function HomePage() {
                         className="w-14 h-14 rounded object-cover shrink-0"
                       />
                     )}
-                
+
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate leading-snug">
                         {product.name}
                       </h3>
-                
+
                       <p className="font-semibold text-sm text-foreground mt-0.5">
-                        Exp: {new Date(product.expiry_date).toLocaleDateString("en-GB")}
+                        Exp:{" "}
+                        {new Date(product.expiry_date).toLocaleDateString(
+                          "en-GB",
+                        )}
                       </p>
-                
+
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
                         {product.category && (
-                          <p className="truncate">
-                            {product.category}
-                          </p>
+                          <p className="truncate">{product.category}</p>
                         )}
-                
                         {product.quantity > 1 && (
                           <p>• Qty: {product.quantity}</p>
                         )}
                       </div>
                     </div>
-                
+
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge
                         className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
                       >
                         {status.replace("_", " ")}
                       </Badge>
-                
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -356,11 +458,11 @@ export default function HomePage() {
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       </div>
-  
+
       <div className="fixed bottom-6 right-6">
         <Button
           onClick={() => navigate("/add-product")}
@@ -370,22 +472,22 @@ export default function HomePage() {
           <Plus className="h-6 w-6" />
         </Button>
       </div>
-  
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{productToDelete?.name}"?
-              This action cannot be undone.
+              Are you sure you want to delete "{productToDelete?.name}"? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-  
+
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">
               Cancel
             </AlertDialogCancel>
-  
+
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-white rounded-full"

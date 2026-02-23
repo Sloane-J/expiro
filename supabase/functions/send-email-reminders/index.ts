@@ -2,35 +2,22 @@ import 'https://deno.land/x/dotenv/load.ts'
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-// Load backend env variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
 
-// Validate env variables
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !RESEND_API_KEY) {
   throw new Error('Missing required environment variables')
 }
 
-// Initialize Supabase client (backend, bypass RLS)
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
-
-// Constants
-const BATCH_SIZE = 30
 const RATE_LIMIT = 95
-const BATCH_DELAY_MS = 0
 
 serve(async () => {
-  console.log("🚀 Cron run started")
-    console.log("RESEND_API_KEY present?", !!RESEND_API_KEY)
-    console.log("SUPABASE_URL present?", !!SUPABASE_URL)
-    console.log("SUPABASE_SERVICE_ROLE_KEY present?", !!SUPABASE_SERVICE_ROLE_KEY)
-
+  console.log("🚀 Daily reminder check started")
   
   try {
-    console.log('🚀 Starting daily reminder check...')
-
-    // ===== STEP 1: Rate Limit Check =====
+    // === STEP 1: Rate Limit Check ===
     const today = new Date().toISOString().split('T')[0]
 
     const { count: emailsSentToday, error: countError } = await supabase
@@ -47,50 +34,102 @@ serve(async () => {
     if ((emailsSentToday || 0) >= RATE_LIMIT) {
       console.log('⚠️ Daily email limit reached')
       return new Response(
-        JSON.stringify({
-          error: 'Daily email limit reached',
-          sent_today: emailsSentToday,
-          limit: RATE_LIMIT
-        }),
+        JSON.stringify({ error: 'Daily email limit reached' }),
         { status: 429, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
-    // ===== STEP 2: Fetch Products Expiring Today =====
-    const { data: products, error: productsError } = await supabase
+    // === STEP 2: Get All Products and Calculate Days Once ===
+    const todayDate = new Date()
+    todayDate.setHours(0, 0, 0, 0)
+
+    const { data: allProducts, error: productsError } = await supabase
       .from('products')
       .select('id, name, expiry_date, category, quantity, status, photo_url')
-      .eq('reminder_date', today)
       .order('expiry_date', { ascending: true })
 
     if (productsError) throw productsError
 
-    console.log(`📦 Products expiring today: ${products?.length || 0}`)
+    // Calculate daysUntilExpiry ONCE for each product
+    const productsWithDays = allProducts?.map(product => {
+      const expiryDate = new Date(product.expiry_date)
+      expiryDate.setHours(0, 0, 0, 0)
+      
+      const daysUntilExpiry = Math.floor(
+        (expiryDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24)
+      )
 
-    if (!products || products.length === 0) {
+      return {
+        ...product,
+        daysUntilExpiry
+      }
+    }) || []
+
+    // Filter products by ranges using the calculated daysUntilExpiry
+    const productsToAlert = productsWithDays.filter(product => {
+      const days = product.daysUntilExpiry
+
+      return (
+        days <= 0 ||                          // Expired
+        (days >= 5 && days <= 9) ||          // 7-day range
+        (days >= 27 && days <= 33) ||        // 30-day range
+        (days >= 57 && days <= 63) ||        // 60-day range
+        (days >= 87 && days <= 93)           // 90-day range
+      )
+    })
+
+    console.log(`📦 Products in alert ranges: ${productsToAlert.length}`)
+
+    if (productsToAlert.length === 0) {
       return new Response(
         JSON.stringify({ message: 'No reminders to send today' }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
     }
 
-    // ===== STEP 3: Get All Users =====
+    // === STEP 3: Group Products by Milestone Ranges (using same daysUntilExpiry) ===
+    const groupedProducts = {
+      expired: [] as any[],
+      sevenDays: [] as any[],
+      thirtyDays: [] as any[],
+      sixtyDays: [] as any[],
+      ninetyDays: [] as any[]
+    }
+
+    productsToAlert.forEach(product => {
+      const days = product.daysUntilExpiry
+
+      if (days <= 0) {
+        groupedProducts.expired.push(product)
+      } else if (days >= 5 && days <= 9) {
+        groupedProducts.sevenDays.push(product)
+      } else if (days >= 27 && days <= 33) {
+        groupedProducts.thirtyDays.push(product)
+      } else if (days >= 57 && days <= 63) {
+        groupedProducts.sixtyDays.push(product)
+      } else if (days >= 87 && days <= 93) {
+        groupedProducts.ninetyDays.push(product)
+      }
+    })
+
+    console.log(`📊 Grouped - Expired: ${groupedProducts.expired.length}, 7d: ${groupedProducts.sevenDays.length}, 30d: ${groupedProducts.thirtyDays.length}, 60d: ${groupedProducts.sixtyDays.length}, 90d: ${groupedProducts.ninetyDays.length}`)
+
+    // === STEP 4: Get ALL Users ===
     const { data: authData, error: authError } = await supabase.auth.admin.listUsers()
     if (authError) throw authError
 
-    // Fetch user profiles with names
     const { data: userProfiles } = await supabase
       .from('user_profiles')
       .select('id, name')
 
-    // Create a map for quick lookup
     const profileMap = new Map(userProfiles?.map(p => [p.id, p.name]) || [])
 
     const allUsers = authData.users.filter(u => u.email).map(u => ({
       ...u,
       displayName: profileMap.get(u.id) || 'there'
     }))
-    console.log(`👥 Active users: ${allUsers.length}`)
+
+    console.log(`👥 Sending to ALL users: ${allUsers.length}`)
 
     if (allUsers.length === 0) {
       return new Response(
@@ -99,103 +138,66 @@ serve(async () => {
       )
     }
 
-    // ===== STEP 4: Batch Products (30 per email) =====
-    const batches: any[][] = []
-    for (let i = 0; i < products.length; i += BATCH_SIZE) {
-      batches.push(products.slice(i, i + BATCH_SIZE))
-    }
-
-    console.log(`📨 Email batches: ${batches.length} (max ${BATCH_SIZE} products each)`)
-
-    // ===== STEP 5: Send Emails in Batches =====
+    // === STEP 5: Send Email to EVERY User ===
     const results = []
+    const totalProducts = productsToAlert.length
 
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-      const batch = batches[batchIndex]
-      const isFirstBatch = batchIndex === 0
+    for (const user of allUsers) {
+      try {
+        const emailHtml = generateEmailHtml(groupedProducts, user.displayName, totalProducts)
 
-      if (!isFirstBatch) {
-        console.log(`⏳ Waiting 1 hour before sending batch ${batchIndex + 1}...`)
-        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS))
-      }
+        const subject = `Expiro - Daily Expiry Alert - ${totalProducts} product${totalProducts > 1 ? 's' : ''} need attention`
 
-      console.log(`📧 Sending batch ${batchIndex + 1}/${batches.length} (${batch.length} products)`)
+        const emailResponse = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${RESEND_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: 'Expiro <onboarding@resend.dev>',
+            to: user.email,
+            subject,
+            html: emailHtml,
+          }),
+        })
 
-      for (const user of allUsers) {
-        try {
-          console.log(`📧 Attempting to send to: ${user.email}`)
-          console.log(`📧 User ID: ${user.id}`)
+        const emailResult = await emailResponse.json()
 
-          const emailHtml = generateEmailHtml(
-            batch,
-            batchIndex + 1,
-            batches.length,
-            products.length,
-            user.displayName
-          )
+        await supabase.from('notifications').insert({
+          user_id: user.id,
+          type: 'email',
+          status: emailResponse.ok ? 'sent' : 'failed',
+          products_count: totalProducts,
+          error_message: emailResponse.ok ? null : JSON.stringify(emailResult),
+        })
 
-          const subject = batches.length > 1
-            ? `⚠️ Expiry Alert (Part ${batchIndex + 1}/${batches.length}): ${batch.length} products`
-            : `⚠️ ${batch.length} product${batch.length > 1 ? 's' : ''} expiring soon`
-
-          console.log(`📧 Subject: ${subject}`)
-          console.log(`📧 Resend API Key exists: ${!!RESEND_API_KEY}`)
-          console.log(`📧 Resend API Key length: ${RESEND_API_KEY?.length || 0}`)
-
-          const emailResponse = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${RESEND_API_KEY}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Expiro <onboarding@resend.dev>',
-              to: user.email,
-              subject,
-              html: emailHtml,
-            }),
-          })
-
-          const emailResult = await emailResponse.json()
-
-          console.log(`📧 Response status: ${emailResponse.status}`)
-          console.log(`📧 Response body:`, JSON.stringify(emailResult, null, 2))
-
-          await supabase.from('notifications').insert({
-            user_id: user.id,
-            type: 'email',
-            status: emailResponse.ok ? 'sent' : 'failed',
-            products_count: batch.length,
-            error_message: emailResponse.ok ? null : JSON.stringify(emailResult),
-          })
-
-          if (emailResponse.ok) {
-            console.log(`✅ Email sent to ${user.email} (${batch.length} products)`)
-            results.push({ user: user.email, products: batch.length, batch: batchIndex + 1 })
-          } else {
-            console.log(`❌ Failed to send to ${user.email}:`, emailResult)
-          }
-
-        } catch (error) {
-          console.log(`❌ Error sending to ${user.email}:`, error)
-
-          await supabase.from('notifications').insert({
-            user_id: user.id,
-            type: 'email',
-            status: 'failed',
-            products_count: batch.length,
-            error_message: error.message,
-          })
+        if (emailResponse.ok) {
+          console.log(`✅ Email sent to ${user.email} (${totalProducts} products)`)
+          results.push({ user: user.email, products: totalProducts })
+        } else {
+          console.log(`❌ Failed to send to ${user.email}:`, emailResult)
         }
+
+      } catch (error) {
+        console.log(`❌ Error sending to ${user.email}:`, error)
+
+        await supabase.from('notifications').insert({
+          user_id: user.id,
+          type: 'email',
+          status: 'failed',
+          products_count: totalProducts,
+          error_message: error.message,
+        })
       }
     }
 
     return new Response(
       JSON.stringify({
-        message: `Sent ${results.length} reminder emails across ${batches.length} batch(es)`,
-        batches: batches.length,
-        total_products: products.length,
+        message: `Sent ${results.length} reminder emails to ALL users`,
+        total_products: totalProducts,
         total_users: allUsers.length,
+        sent_to: results.length,
         results,
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
@@ -210,38 +212,8 @@ serve(async () => {
   }
 })
 
-// ===== Helper: Generate Email HTML =====
-function generateEmailHtml(
-  products: any[],
-  batchNum: number,
-  totalBatches: number,
-  totalProducts: number,
-  name: string
-): string {
-  // Group products by status
-  const expired = products.filter(p => p.status === 'expired')
-  const urgent = products.filter(p => p.status === 'urgent')
-  const expiringSoon = products.filter(p => p.status === 'expiring_soon')
-
-  // Batch info banner
-  const batchInfo = totalBatches > 1 ? `
-    <tr>
-      <td style="padding:20px 0;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-          <tr>
-            <td style="background:#E3F2FD;border-left:4px solid #2196F3;padding:15px;border-radius:8px;">
-              <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:600;color:#1565C0;">
-                📬 Part ${batchNum} of ${totalBatches}
-              </p>
-              <p style="margin:8px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14px;color:#1976D2;">
-                You'll receive ${totalBatches} emails today covering ${totalProducts} total products. This is part ${batchNum}.
-              </p>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  ` : ''
+function generateEmailHtml(groupedProducts: any, name: string, totalProducts: number): string {
+  const { expired, sevenDays, thirtyDays, sixtyDays, ninetyDays } = groupedProducts
 
   return `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -268,6 +240,7 @@ function generateEmailHtml(
     <tr>
       <td align="center" style="padding:40px 20px;">
         <table class="container" role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:100%;background-color:#F8F8F8;border-radius:0;">
+          
           <tr>
             <td style="padding:40px 40px 0 40px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -277,7 +250,7 @@ function generateEmailHtml(
                       Product Expiry reminder
                     </p>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14px;color:#666666;">
-                      Date: ${new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} at ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                      ${formatDateLong(new Date())}
                     </p>
                   </td>
                   <td align="right" style="vertical-align:top;width:100px;">
@@ -289,6 +262,7 @@ function generateEmailHtml(
               </table>
             </td>
           </tr>
+
           <tr>
             <td style="padding:30px 40px 0 40px;">
               <h1 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:28px;font-weight:700;color:#333333;">
@@ -296,13 +270,15 @@ function generateEmailHtml(
               </h1>
             </td>
           </tr>
+          
           <tr>
             <td style="padding:15px 40px 0 40px;">
               <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;line-height:24px;color:#4A4A4A;">
-                Hello! Your daily inventory report is ready for review. We've identified <strong>${products.length} items</strong> that need your attention to minimize waste and ensure product safety.
+                Your daily inventory report is ready. We've identified <strong>${totalProducts} item${totalProducts > 1 ? 's' : ''}</strong> that need your attention to minimize waste and ensure product safety.
               </p>
             </td>
           </tr>
+
           <tr>
             <td style="padding:25px 40px 0 40px;">
               <table role="presentation" cellpadding="0" cellspacing="0">
@@ -316,50 +292,93 @@ function generateEmailHtml(
               </table>
             </td>
           </tr>
-          ${batchInfo}
+
           <tr>
             <td style="padding:30px 40px;">
+              
               ${expired.length > 0 ? `
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#D32F2F;text-transform:uppercase;">
-                      EXPIRED PRODUCTS (${expired.length})
+                      EXPIRED (${expired.length})
                     </h2>
                     <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
-                      Remove immediately from shelves to maintain safety compliance
+                      Remove immediately from shelves
                     </p>
                   </td>
                 </tr>
                 ${expired.map(p => generateProductCard(p, 'EXPIRED', '#FF0000')).join('')}
               </table>
               ` : ''}
-              ${urgent.length > 0 ? `
+
+              ${sevenDays.length > 0 ? `
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#F57C00;text-transform:uppercase;">
-                      URGENT - EXPIRES WITHIN 7 DAYS (${urgent.length})
+                      ~7 DAYS UNTIL EXPIRY (${sevenDays.length})
                     </h2>
+                    <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
+                      Apply discounts and promote heavily
+                    </p>
                   </td>
                 </tr>
-                ${urgent.map(p => generateProductCard(p, 'URGENT', '#FFA726')).join('')}
+                ${sevenDays.map(p => generateProductCard(p, '~7 DAYS', '#FFA726')).join('')}
               </table>
               ` : ''}
-              ${expiringSoon.length > 0 ? `
+
+              ${thirtyDays.length > 0 ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
+                <tr>
+                  <td style="padding-bottom:20px;">
+                    <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#F57C00;text-transform:uppercase;">
+                      ~30 DAYS UNTIL EXPIRY (${thirtyDays.length})
+                    </h2>
+                    <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
+                      Start planning promotions
+                    </p>
+                  </td>
+                </tr>
+                ${thirtyDays.map(p => generateProductCard(p, '~30 DAYS', '#FFA726')).join('')}
+              </table>
+              ` : ''}
+
+              ${sixtyDays.length > 0 ? `
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
                 <tr>
                   <td style="padding-bottom:20px;">
                     <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#388E3C;text-transform:uppercase;">
-                      EXPIRING SOON - 8 TO 90 DAYS (${expiringSoon.length})
+                      ~60 DAYS UNTIL EXPIRY (${sixtyDays.length})
                     </h2>
+                    <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
+                      Monitor inventory levels
+                    </p>
                   </td>
                 </tr>
-                ${expiringSoon.map(p => generateProductCard(p, 'EXPIRING', '#4CAF50')).join('')}
+                ${sixtyDays.map(p => generateProductCard(p, '~60 DAYS', '#4CAF50')).join('')}
               </table>
               ` : ''}
+
+              ${ninetyDays.length > 0 ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
+                <tr>
+                  <td style="padding-bottom:20px;">
+                    <h2 style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:16px;font-weight:800;color:#388E3C;text-transform:uppercase;">
+                      ~90 DAYS UNTIL EXPIRY (${ninetyDays.length})
+                    </h2>
+                    <p style="margin:5px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:500;color:#666666;">
+                      Plan ahead for stock rotation
+                    </p>
+                  </td>
+                </tr>
+                ${ninetyDays.map(p => generateProductCard(p, '~90 DAYS', '#4CAF50')).join('')}
+              </table>
+              ` : ''}
+
             </td>
           </tr>
+
           <tr>
             <td style="padding:0 40px 40px 40px;">
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EFEFEF;">
@@ -378,16 +397,16 @@ function generateEmailHtml(
                       Discount Expiring Items
                     </p>
                     <p style="margin:0 0 15px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:600;color:#4A4A4A;line-height:20px;">
-                      Apply clear-out pricing to items expiring within the next couple of days.
+                      Apply clear-out pricing to items expiring within the next week.
                     </p>
                     <p style="margin:0 0 5px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:700;color:#1A1A1A;">
-                      Plan Ahead for Expiring Soon Items
+                      Plan Ahead
                     </p>
                     <p style="margin:0 0 20px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:600;color:#4A4A4A;line-height:20px;">
-                      Start planning promotions, bundle deals, and marketing campaigns for products expiring in 8-90 days.
+                      Start planning promotions and marketing campaigns for products with 30-90 days remaining.
                     </p>
                     <h3 style="margin:20px 0 10px 0;padding-top:20px;border-top:1px solid #CCCCCC;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:14px;font-weight:700;color:#1A1A1A;text-transform:uppercase;">
-                      FOR ASSSISTANCE OR HELP
+                      FOR ASSISTANCE OR HELP
                     </h3>
                     <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;font-size:13px;font-weight:600;color:#4A4A4A;">
                       Email: samuelleonard63@gmail.com
@@ -397,6 +416,7 @@ function generateEmailHtml(
               </table>
             </td>
           </tr>
+
         </table>
       </td>
     </tr>
@@ -406,9 +426,8 @@ function generateEmailHtml(
   `
 }
 
-// ===== Helper: Generate Product Card =====
 function generateProductCard(product: any, statusLabel: string, statusColor: string): string {
-  const statusTextColor = statusLabel === 'URGENT' ? '#000000' : '#FFFFFF'
+  const statusTextColor = statusLabel.includes('~7') || statusLabel.includes('~30') ? '#000000' : '#FFFFFF'
 
   return `
     <tr>
@@ -450,27 +469,25 @@ function generateProductCard(product: any, statusLabel: string, statusColor: str
   `
 }
 
-// ===== Helper: Format Date =====
 function formatDate(dateString: string): string {
   const date = new Date(dateString)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-
-  const expiry = new Date(dateString)
-  expiry.setHours(0, 0, 0, 0)
-
-  const daysUntil = Math.floor((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-  const formatted = date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
     month: 'short',
+    year: 'numeric'
+  })
+}
+
+function formatDateLong(date: Date): string {
+  const datePart = date.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
     day: 'numeric',
     year: 'numeric'
   })
-
-  if (daysUntil < 0) return `${formatted} (${Math.abs(daysUntil)} days ago)`
-  if (daysUntil === 0) return `${formatted} (TODAY)`
-  if (daysUntil === 1) return `${formatted} (Tomorrow)`
-  if (daysUntil <= 7) return `${formatted} (${daysUntil} days)`
-
-  return formatted
+  const timePart = date.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+  return `${datePart} at ${timePart}`
 }
