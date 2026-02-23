@@ -1,12 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-    Loader2,
-    LogOut,
-    Plus,
-    Search,
-    Settings,
-    Trash2,
-    User,
+  Loader2,
+  LogOut,
+  Package,
+  Plus,
+  Search,
+  SearchX,
+  Settings,
+  Trash2,
+  User,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -291,9 +293,52 @@ export default function HomePage() {
   
       <div className="p-4 max-w-2xl mx-auto pb-20">
         <div className="space-y-2">
+          {/* Empty state: no products at all */}
+          {products?.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+              <div className="rounded-full bg-muted p-6 mb-4">
+                <Package className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-semibold mb-1">No products yet</h2>
+              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                Start tracking expiry dates by adding your first product.
+              </p>
+              <Button
+                onClick={() => navigate('/add-product')}
+                className="rounded-full px-6"
+              >
+                <Plus className="mr-2 h-4 w-4" /> Add First Product
+              </Button>
+            </div>
+          )}
+        
+          {/* Empty state: has products but filter/search returns nothing */}
+          {products?.length > 0 && filteredProducts?.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+              <div className="rounded-full bg-muted p-6 mb-4">
+                <SearchX className="h-10 w-10 text-muted-foreground" />
+              </div>
+              <h2 className="text-lg font-semibold mb-1">No results found</h2>
+              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+                No products match your current search or filter.
+              </p>
+              <Button
+                variant="outline"
+                className="rounded-full px-6"
+                onClick={() => {
+                  setSearchQuery('')
+                  setFilter('all')
+                }}
+              >
+                Clear filters
+              </Button>
+            </div>
+          )}
+        
+          {/* Product list */}
           {filteredProducts?.map((product) => {
             const status = getProductStatus(product.expiry_date)
-  
+        
             return (
               <Card
                 key={product.id}
