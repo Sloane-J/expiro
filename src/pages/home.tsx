@@ -4,6 +4,7 @@ import {
   LogOut,
   Package,
   Plus,
+  RefreshCw,
   Search,
   SearchX,
   Settings,
@@ -11,33 +12,30 @@ import {
   User,
   WifiOff,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { InstallPrompt } from "@/components/install-prompt";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-
 import { Badge } from "@/components/ui/badge";
-
 import { Button } from "@/components/ui/button";
-
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    DropdownMenu,
-    DropdownMenuContent,
-    DropdownMenuItem,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { signOut } from "@/lib/auth";
@@ -48,21 +46,21 @@ type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
 
 export default function HomePage() {
   const navigate = useNavigate();
-
   const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState<FilterStatus>("all");
-
   const [searchQuery, setSearchQuery] = useState("");
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-
   const [productToDelete, setProductToDelete] = useState<{
     id: string;
     name: string;
   } | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartY = useRef(0);
+  const touchCurrentY = useRef(0);
+  const PULL_THRESHOLD = 80;
 
-  // Fetch real name from user_profiles table
   const { data: profile } = useQuery({
     queryKey: ["user-profile"],
     queryFn: async () => {
@@ -95,7 +93,6 @@ export default function HomePage() {
     retry: 1,
   });
 
-  // Auth Guard: Redirect to login if session is dead
   useEffect(() => {
     if (error) {
       const isAuthError =
@@ -110,35 +107,23 @@ export default function HomePage() {
 
   const deleteMutation = useMutation({
     mutationFn: deleteProduct,
-    // Optimistic update - remove from UI immediately
     onMutate: async (deletedId) => {
-      // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["products"] });
-
-      // Snapshot the previous value
       const previousProducts = queryClient.getQueryData(["products"]);
-
-      // Optimistically update UI
       queryClient.setQueryData(["products"], (old: any[]) =>
-        old?.filter((product) => product.id !== deletedId)
+        old?.filter((product) => product.id !== deletedId),
       );
-
-      // Return context with snapshot
       return { previousProducts };
     },
-    // On success, just close dialog
     onSuccess: () => {
       setDeleteDialogOpen(false);
       setProductToDelete(null);
       toast.success("Product deleted successfully");
     },
-    // On error, roll back and show message
     onError: (_, __, context) => {
-      // Roll back to previous state
       queryClient.setQueryData(["products"], context?.previousProducts);
       toast.error("Failed to delete product. Please try again.");
     },
-    // Always refetch after error or success
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["products"] });
     },
@@ -155,11 +140,36 @@ export default function HomePage() {
     }
   };
 
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    await queryClient.invalidateQueries({ queryKey: ["products"] });
+    setTimeout(() => setIsRefreshing(false), 800);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchCurrentY.current = e.touches[0].clientY;
+    const distance = touchCurrentY.current - touchStartY.current;
+    if (distance > 0 && window.scrollY === 0) {
+      setPullDistance(Math.min(distance, PULL_THRESHOLD + 20));
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (pullDistance >= PULL_THRESHOLD) {
+      handleRefresh();
+    }
+    setPullDistance(0);
+  };
+
   const getFilterColor = (status: string, isActive: boolean) => {
     if (!isActive) {
       return "border-border bg-background text-foreground hover:bg-accent";
     }
-
     switch (status) {
       case "safe":
         return "border-transparent bg-status-safe text-status-safe-fg hover:opacity-90";
@@ -190,13 +200,11 @@ export default function HomePage() {
     return products?.filter((product) => {
       const matchesFilter =
         filter === "all" || getProductStatus(product.expiry_date) === filter;
-
       const matchesSearch =
         product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (product.category?.toLowerCase() || "").includes(
           searchQuery.toLowerCase(),
         );
-
       return matchesFilter && matchesSearch;
     });
   }, [products, filter, searchQuery]);
@@ -221,18 +229,19 @@ export default function HomePage() {
           Could not load products. Check your connection and try again.
         </p>
         <Button
-          onClick={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
+          onClick={() =>
+            queryClient.invalidateQueries({ queryKey: ["products"] })
+          }
           className="rounded-full px-6 mt-2"
         >
           Try again
         </Button>
       </div>
-    )
+    );
   }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Install Prompt */}
       <InstallPrompt />
 
       <div className="sticky top-0 z-10 bg-background border-b">
@@ -266,8 +275,8 @@ export default function HomePage() {
 
                 <DropdownMenuItem
                   onClick={async () => {
-                    await signOut()
-                    navigate("/login")
+                    await signOut();
+                    navigate("/login");
                   }}
                   className="text-destructive font-semibold"
                 >
@@ -278,9 +287,7 @@ export default function HomePage() {
           </div>
 
           <div className="mt-6">
-            <h1 className="text-xl font-bold tracking-tighter">
-              Inventory
-            </h1>
+            <h1 className="text-xl font-bold tracking-tighter">Inventory</h1>
           </div>
 
           <div className="relative mt-3">
@@ -296,23 +303,56 @@ export default function HomePage() {
 
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
-              {(["all", "safe", "expiring_soon", "expired"] as const).map((s) => (
-                <Button
-                  key={s}
-                  variant={filter === s ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setFilter(s)}
-                  className={`shrink-0 font-medium text-xs rounded-full whitespace-nowrap px-3 py-1 transition-all ${getFilterColor(s, filter === s)}`}
-                >
-                  {s.replace("_", " ")}
-                </Button>
-              ))}
+              {(["all", "safe", "expiring_soon", "expired"] as const).map(
+                (s) => (
+                  <Button
+                    key={s}
+                    variant={filter === s ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setFilter(s)}
+                    className={`shrink-0 font-medium text-xs rounded-full whitespace-nowrap px-3 py-1 transition-all ${getFilterColor(s, filter === s)}`}
+                  >
+                    {s.replace("_", " ")}
+                  </Button>
+                ),
+              )}
             </div>
           )}
         </div>
       </div>
 
-      <div className="p-4 max-w-2xl mx-auto pb-20">
+      <div
+        className="p-4 max-w-2xl mx-auto pb-20"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to refresh indicator */}
+        {pullDistance > 10 && (
+          <div
+            className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2 transition-all"
+            style={{ height: `${Math.min(pullDistance, PULL_THRESHOLD)}px` }}
+          >
+            <RefreshCw
+              className={`h-4 w-4 transition-transform ${
+                pullDistance >= PULL_THRESHOLD ? "text-primary rotate-180" : ""
+              }`}
+            />
+            <span>
+              {pullDistance >= PULL_THRESHOLD
+                ? "Release to refresh"
+                : "Pull to refresh"}
+            </span>
+          </div>
+        )}
+
+        {isRefreshing && (
+          <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>Refreshing...</span>
+          </div>
+        )}
+
         <div className="space-y-2">
           {/* Empty state: no products at all */}
           {products?.length === 0 && (
@@ -325,7 +365,7 @@ export default function HomePage() {
                 Start tracking expiry dates by adding your first product.
               </p>
               <Button
-                onClick={() => navigate('/add-product')}
+                onClick={() => navigate("/add-product")}
                 className="rounded-full px-6"
               >
                 <Plus className="mr-2 h-4 w-4" /> Add First Product
@@ -334,7 +374,7 @@ export default function HomePage() {
           )}
 
           {/* Empty state: has products but filter/search returns nothing */}
-          {products?.length > 0 && filteredProducts?.length === 0 && (
+          {(products?.length ?? 0) > 0 && filteredProducts?.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-center px-4">
               <div className="rounded-full bg-muted p-6 mb-4">
                 <SearchX className="h-10 w-10 text-muted-foreground" />
@@ -347,8 +387,8 @@ export default function HomePage() {
                 variant="outline"
                 className="rounded-full px-6"
                 onClick={() => {
-                  setSearchQuery('')
-                  setFilter('all')
+                  setSearchQuery("");
+                  setFilter("all");
                 }}
               >
                 Clear filters
@@ -358,7 +398,7 @@ export default function HomePage() {
 
           {/* Product list */}
           {filteredProducts?.map((product) => {
-            const status = getProductStatus(product.expiry_date)
+            const status = getProductStatus(product.expiry_date);
 
             return (
               <Card
@@ -381,16 +421,16 @@ export default function HomePage() {
                       </h3>
 
                       <p className="font-semibold text-sm text-foreground mt-0.5">
-                        Exp: {new Date(product.expiry_date).toLocaleDateString("en-GB")}
+                        Exp:{" "}
+                        {new Date(product.expiry_date).toLocaleDateString(
+                          "en-GB",
+                        )}
                       </p>
 
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
                         {product.category && (
-                          <p className="truncate">
-                            {product.category}
-                          </p>
+                          <p className="truncate">{product.category}</p>
                         )}
-
                         {product.quantity > 1 && (
                           <p>• Qty: {product.quantity}</p>
                         )}
@@ -418,7 +458,7 @@ export default function HomePage() {
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       </div>
@@ -438,8 +478,8 @@ export default function HomePage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Product?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete "{productToDelete?.name}"?
-              This action cannot be undone.
+              Are you sure you want to delete "{productToDelete?.name}"? This
+              action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
