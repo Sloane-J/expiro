@@ -9,6 +9,7 @@ import {
   Settings,
   Trash2,
   User,
+  WifiOff,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -113,15 +114,15 @@ export default function HomePage() {
     onMutate: async (deletedId) => {
       // Cancel any outgoing refetches
       await queryClient.cancelQueries({ queryKey: ["products"] });
-  
+
       // Snapshot the previous value
       const previousProducts = queryClient.getQueryData(["products"]);
-  
+
       // Optimistically update UI
       queryClient.setQueryData(["products"], (old: any[]) =>
         old?.filter((product) => product.id !== deletedId)
       );
-  
+
       // Return context with snapshot
       return { previousProducts };
     },
@@ -153,12 +154,12 @@ export default function HomePage() {
       deleteMutation.mutate(productToDelete.id);
     }
   };
-  
+
   const getFilterColor = (status: string, isActive: boolean) => {
     if (!isActive) {
       return "border-border bg-background text-foreground hover:bg-accent";
     }
-    
+
     switch (status) {
       case "safe":
         return "border-transparent bg-status-safe text-status-safe-fg hover:opacity-90";
@@ -209,6 +210,26 @@ export default function HomePage() {
     );
   }
 
+  if (error && !isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <div className="rounded-full bg-muted p-6 mb-2">
+          <WifiOff className="h-10 w-10 text-muted-foreground" />
+        </div>
+        <h2 className="text-lg font-semibold">Something went wrong</h2>
+        <p className="text-sm text-muted-foreground max-w-xs">
+          Could not load products. Check your connection and try again.
+        </p>
+        <Button
+          onClick={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
+          className="rounded-full px-6 mt-2"
+        >
+          Try again
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       {/* Install Prompt */}
@@ -223,26 +244,26 @@ export default function HomePage() {
                 {profile?.name || "User"}
               </span>
             </p>
-  
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-9 w-9">
                   <Settings className="h-6 w-6" />
                 </Button>
               </DropdownMenuTrigger>
-  
+
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem onClick={() => navigate("/profile")}>
                   <User className="mr-2 h-4 w-4" /> Profile
                 </DropdownMenuItem>
-  
+
                 <div className="flex items-center justify-between px-2 py-1.5 text-sm">
                   <span>Theme</span>
                   <ThemeToggle />
                 </div>
-  
+
                 <DropdownMenuSeparator />
-  
+
                 <DropdownMenuItem
                   onClick={async () => {
                     await signOut()
@@ -255,13 +276,13 @@ export default function HomePage() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-  
+
           <div className="mt-6">
             <h1 className="text-xl font-bold tracking-tighter">
               Inventory
             </h1>
           </div>
-  
+
           <div className="relative mt-3">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -272,7 +293,7 @@ export default function HomePage() {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-  
+
           {products && products.length > 0 && (
             <div className="flex gap-2 mt-3 pb-2 overflow-x-auto no-scrollbar">
               {(["all", "safe", "expiring_soon", "expired"] as const).map((s) => (
@@ -290,7 +311,7 @@ export default function HomePage() {
           )}
         </div>
       </div>
-  
+
       <div className="p-4 max-w-2xl mx-auto pb-20">
         <div className="space-y-2">
           {/* Empty state: no products at all */}
@@ -311,7 +332,7 @@ export default function HomePage() {
               </Button>
             </div>
           )}
-        
+
           {/* Empty state: has products but filter/search returns nothing */}
           {products?.length > 0 && filteredProducts?.length === 0 && (
             <div className="flex flex-col items-center justify-center py-24 text-center px-4">
@@ -334,11 +355,11 @@ export default function HomePage() {
               </Button>
             </div>
           )}
-        
+
           {/* Product list */}
           {filteredProducts?.map((product) => {
             const status = getProductStatus(product.expiry_date)
-        
+
             return (
               <Card
                 key={product.id}
@@ -353,36 +374,36 @@ export default function HomePage() {
                         className="w-14 h-14 rounded object-cover shrink-0"
                       />
                     )}
-                
+
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-sm truncate leading-snug">
                         {product.name}
                       </h3>
-                
+
                       <p className="font-semibold text-sm text-foreground mt-0.5">
                         Exp: {new Date(product.expiry_date).toLocaleDateString("en-GB")}
                       </p>
-                
+
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
                         {product.category && (
                           <p className="truncate">
                             {product.category}
                           </p>
                         )}
-                
+
                         {product.quantity > 1 && (
                           <p>• Qty: {product.quantity}</p>
                         )}
                       </div>
                     </div>
-                
+
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge
                         className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
                       >
                         {status.replace("_", " ")}
                       </Badge>
-                
+
                       <Button
                         variant="ghost"
                         size="icon"
@@ -401,7 +422,7 @@ export default function HomePage() {
           })}
         </div>
       </div>
-  
+
       <div className="fixed bottom-6 right-6">
         <Button
           onClick={() => navigate("/add-product")}
@@ -411,7 +432,7 @@ export default function HomePage() {
           <Plus className="h-6 w-6" />
         </Button>
       </div>
-  
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
@@ -421,12 +442,12 @@ export default function HomePage() {
               This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-  
+
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">
               Cancel
             </AlertDialogCancel>
-  
+
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-white rounded-full"
