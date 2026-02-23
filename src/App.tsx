@@ -4,6 +4,7 @@ import { ProtectedRoute } from '@/components/protected-route'
 import LoginPage from '@/pages/login'
 import HomePage from '@/pages/home'
 import AddProductPage from '@/pages/add-product'
+import ProductDetailPage from '@/pages/product-detail'
 import ProfilePage from '@/pages/profile'
 
 function App() {
@@ -38,6 +39,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <AddProductPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/products/:id"
+            element={
+              <ProtectedRoute>
+                <ProductDetailPage />
               </ProtectedRoute>
             }
           />

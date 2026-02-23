@@ -403,7 +403,8 @@ export default function HomePage() {
             return (
               <Card
                 key={product.id}
-                className="overflow-hidden border-border/50 shadow-sm"
+                className="overflow-hidden border-border/50 shadow-sm cursor-pointer active:opacity-70 transition-opacity"
+                onClick={() => navigate(`/products/${product.id}`)}
               >
                 <CardContent className="px-3 py-2">
                   <div className="flex gap-3 items-start">
