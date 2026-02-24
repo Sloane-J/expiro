@@ -10,6 +10,7 @@ import {
   Settings,
   Trash2,
   User,
+  ShieldCheck,
   WifiOff,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -72,7 +73,7 @@ export default function HomePage() {
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("name")
+        .select("name, role")
         .eq("id", user.id)
         .single();
 
@@ -270,6 +271,15 @@ export default function HomePage() {
                   <span>Theme</span>
                   <ThemeToggle />
                 </div>
+
+                {profile?.role === "admin" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Approvals
+                    </DropdownMenuItem>
+                  </>
+                )}
 
                 <DropdownMenuSeparator />
 

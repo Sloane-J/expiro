@@ -1,18 +1,23 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 export const config = {
-  verify_jwt: false,
+  verify_jwt: false, // JWT turned off
 }
 
-const GMAIL_USER = Deno.env.get('GMAIL_USER')!
-const GMAIL_APP_PASSWORD = Deno.env.get('GMAIL_APP_PASSWORD')!
-const ADMIN_EMAIL = 'samuelleonard63@gmail.com'
+// Secrets:
+// - RESEND_API_KEY
+// - SUPABASE_URL
+// - SUPABASE_SERVICE_ROLE_KEY
+// - INTERNAL_SECRET
+
+const ADMIN_EMAIL = 'samuelleonard63@gmail.com' // verified email
+const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
 const INTERNAL_SECRET = Deno.env.get('INTERNAL_SECRET')!
 
 serve(async (req) => {
   try {
+    // Internal secret check
     const secret = req.headers.get('x-internal-secret')
     if (secret !== INTERNAL_SECRET) {
       return new Response('Unauthorized', { status: 401 })
@@ -30,6 +35,7 @@ serve(async (req) => {
       return new Response('Invalid payload', { status: 400 })
     }
 
+    // Fetch user email from Supabase Auth
     const { data: authUser, error: authError } =
       await supabase.auth.admin.getUserById(newUser.id)
 
@@ -39,34 +45,43 @@ serve(async (req) => {
 
     const userEmail = authUser.user.email || 'Unknown'
 
-    const client = new SMTPClient({
-      connection: {
-        hostname: 'smtp.gmail.com',
-        port: 465,
-        tls: true,
-        auth: {
-          username: GMAIL_USER,
-          password: GMAIL_APP_PASSWORD,
-        },
+    // Send email via Resend API
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
       },
+      body: JSON.stringify({
+        from: `Expiro <${ADMIN_EMAIL}>`, // sender is the verified admin email
+        to: [ADMIN_EMAIL],
+        subject: '🔔 New Expiro Signup - Approval Needed',
+        html: `
+          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
+            <h2>New User Signup</h2>
+            <p>A new user has signed up for Expiro and is waiting for your approval.</p>
+            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+              <tr>
+                <td style="padding: 8px; background: #f5f5f5; font-weight: bold;">Email</td>
+                <td style="padding: 8px; background: #f9f9f9;">${userEmail}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px; background: #f5f5f5; font-weight: bold;">Signed up</td>
+                <td style="padding: 8px; background: #f9f9f9;">${new Date().toLocaleString()}</td>
+              </tr>
+            </table>
+            <p>Open the Expiro app and go to <strong>Admin → Pending Users</strong> to approve or ignore this request.</p>
+          </div>
+        `,
+      }),
     })
 
-    await client.send({
-      from: GMAIL_USER,
-      to: ADMIN_EMAIL,
-      subject: 'New Expiro Signup - Approval Needed',
-      html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-          <h2>New User Signup</h2>
-          <p>A new user has signed up for Expiro and is waiting for your approval.</p>
-          <p><strong>Email:</strong> ${userEmail}</p>
-          <p><strong>Signed up:</strong> ${new Date().toLocaleString()}</p>
-        </div>
-      `,
-    })
+    if (!resendRes.ok) {
+      const errText = await resendRes.text()
+      throw new Error(`Resend API error: ${resendRes.status} ${errText}`)
+    }
 
-    await client.close()
-
+    // Log notification in Supabase
     await supabase.from('notifications').insert({
       type: 'email',
       status: 'sent',
