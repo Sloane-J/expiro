@@ -15,12 +15,40 @@ export async function signUp(email: string, password: string) {
 }
 
 export async function signIn(email: string, password: string) {
+  // 1. Sign in with Supabase auth
   const { data, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   })
 
-  return { data, error }
+  if (error) return { data, error }
+
+  // 2. Check if user is approved
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('is_approved')
+    .eq('id', data.user.id)
+    .single()
+
+  if (profileError || !profile) {
+    await supabase.auth.signOut()
+    return {
+      data: null,
+      error: { message: 'Account not found. Please contact the admin.' },
+    }
+  }
+
+  if (!profile.is_approved) {
+    await supabase.auth.signOut()
+    return {
+      data: null,
+      error: {
+        message: 'Your account is pending approval. Please wait for the admin to approve your access.',
+      },
+    }
+  }
+
+  return { data, error: null }
 }
 
 export async function signOut() {

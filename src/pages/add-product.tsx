@@ -21,13 +21,18 @@ export default function AddProductPage() {
 
   const mutation = useMutation({
     mutationFn: addProduct,
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['products'] })
-      showToast('success', 'Product added successfully!')
-      setTimeout(() => navigate('/home'), 1500)
+      if (result.warning) {
+        showToast('success', result.warning)
+        setTimeout(() => navigate('/home'), 3000)
+      } else {
+        showToast('success', 'Product added successfully!')
+        setTimeout(() => navigate('/home'), 1500)
+      }
     },
-    onError: () => {
-      showToast('error', 'Failed to save product')
+    onError: (error: Error) => {
+      showToast('error', error.message || 'Failed to save product')
     },
   })
 
@@ -49,7 +54,7 @@ export default function AddProductPage() {
 
   const handleSave = async () => {
     setUploading(true)
-    
+
     // Upload photo if exists
     let photoUrl = null
     if (photoFile) {
@@ -71,7 +76,7 @@ export default function AddProductPage() {
       quantity,
       category: category || null,
     })
-    
+
     setUploading(false)
   }
 
