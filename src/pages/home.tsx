@@ -10,6 +10,7 @@ import {
   Settings,
   Trash2,
   User,
+  ShieldCheck,
   WifiOff,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -72,7 +73,7 @@ export default function HomePage() {
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("name")
+        .select("name, role")
         .eq("id", user.id)
         .single();
 
@@ -271,6 +272,15 @@ export default function HomePage() {
                   <ThemeToggle />
                 </div>
 
+                {profile?.role === "admin" && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
+                      <ShieldCheck className="mr-2 h-4 w-4" /> Approvals
+                    </DropdownMenuItem>
+                  </>
+                )}
+
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
@@ -403,7 +413,8 @@ export default function HomePage() {
             return (
               <Card
                 key={product.id}
-                className="overflow-hidden border-border/50 shadow-sm"
+                className="overflow-hidden border-border/50 shadow-sm cursor-pointer active:opacity-70 transition-opacity"
+                onClick={() => navigate(`/products/${product.id}`)}
               >
                 <CardContent className="px-3 py-2">
                   <div className="flex gap-3 items-start">

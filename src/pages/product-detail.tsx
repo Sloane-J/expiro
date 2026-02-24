@@ -1,45 +1,85 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Camera, Loader2, CheckCircle2, XCircle } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { ArrowLeft, Camera, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { addProduct } from '@/lib/products'
+import { getProductById, updateProduct } from '@/lib/products'
 import { uploadProductPhoto } from '@/lib/storage'
 
-export default function AddProductPage() {
+export default function ProductDetailPage() {
+  const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
   const [name, setName] = useState('')
   const [expiryDate, setExpiryDate] = useState('')
   const [quantity, setQuantity] = useState(1)
+  const [category, setCategory] = useState('')
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [category, setCategory] = useState('')
-  const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [hydrated, setHydrated] = useState(false)
 
-  const mutation = useMutation({
-    mutationFn: addProduct,
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ['products'] })
-      if (result.warning) {
-        showToast('success', result.warning)
-        setTimeout(() => navigate('/home'), 3000)
-      } else {
-        showToast('success', 'Product added successfully!')
-        setTimeout(() => navigate('/home'), 1500)
+  // Fetch product and populate form
+  const { isLoading, error } = useQuery({
+    queryKey: ['product', id],
+    queryFn: () => getProductById(id!),
+    enabled: !!id,
+    staleTime: 0,
+    refetchOnMount: true,
+    // Populate form fields once data arrives
+    select: (data) => {
+      if (!hydrated) {
+        setName(data.name)
+        setExpiryDate(data.expiry_date)
+        setQuantity(data.quantity)
+        setCategory(data.category || '')
+        setPhotoPreview(data.photo_url || null)
+        setHydrated(true)
       }
-    },
-    onError: (error: Error) => {
-      showToast('error', error.message || 'Failed to save product')
+      return data
     },
   })
 
-  const showToast = (type: 'success' | 'error', message: string) => {
-    setToast({ type, message })
-    setTimeout(() => setToast(null), 3000)
-  }
+  const mutation = useMutation({
+    mutationFn: async () => {
+      let photoUrl: string | null | undefined = undefined
+
+      // Only upload if a new photo was selected
+      if (photoFile) {
+        setUploading(true)
+        const uploaded = await uploadProductPhoto(photoFile)
+        setUploading(false)
+
+        if (!uploaded) {
+          throw new Error('Failed to upload photo')
+        }
+
+        photoUrl = uploaded
+      }
+
+      return updateProduct(id!, {
+        name,
+        expiry_date: expiryDate,
+        quantity,
+        category: category || null,
+        // Only pass photo_url if a new one was uploaded
+        ...(photoUrl !== undefined && { photo_url: photoUrl }),
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['products'] })
+      queryClient.invalidateQueries({ queryKey: ['product', id] })
+      toast.success('Product updated successfully')
+      setTimeout(() => navigate('/home'), 1000)
+    },
+    onError: (error: Error) => {
+      setUploading(false)
+      toast.error(error.message || 'Failed to update product')
+    },
+  })
 
   const handlePhotoCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -48,80 +88,59 @@ export default function AddProductPage() {
       const reader = new FileReader()
       reader.onload = () => setPhotoPreview(reader.result as string)
       reader.readAsDataURL(file)
-      showToast('success', 'Photo selected')
     }
   }
 
-  const handleSave = async () => {
-    setUploading(true)
-
-    // Upload photo if exists
-    let photoUrl = null
-    if (photoFile) {
-      showToast('success', 'Uploading photo...')
-      photoUrl = await uploadProductPhoto(photoFile)
-      if (!photoUrl) {
-        showToast('error', 'Failed to upload photo')
-        setUploading(false)
-        return
-      }
-      showToast('success', 'Photo uploaded successfully!')
-    }
-
-    // Save product
-    mutation.mutate({
-      name,
-      expiry_date: expiryDate,
-      photo_url: photoUrl,
-      quantity,
-      category: category || null,
-    })
-
-    setUploading(false)
+  const handleSave = () => {
+    if (!name || !expiryDate) return
+    mutation.mutate()
   }
 
-  const isLoading = uploading || mutation.isPending
+  const isProcessing = uploading || mutation.isPending
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-muted-foreground text-sm">Loading product...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 p-4 text-center">
+        <p className="text-muted-foreground">Product not found or failed to load.</p>
+        <Button variant="outline" onClick={() => navigate('/home')} className="rounded-full">
+          Go back
+        </Button>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-4">
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed top-4 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg animate-in slide-in-from-top-5 ${
-            toast.type === 'success'
-              ? 'bg-green-500 text-white'
-              : 'bg-red-500 text-white'
-          }`}
-        >
-          {toast.type === 'success' ? (
-            <CheckCircle2 className="h-5 w-5" />
-          ) : (
-            <XCircle className="h-5 w-5" />
-          )}
-          <span className="font-medium">{toast.message}</span>
-        </div>
-      )}
-
       <div className="max-w-2xl mx-auto">
         <Button
           variant="ghost"
           onClick={() => navigate('/home')}
           className="mb-6 hover:bg-accent/50"
+          disabled={isProcessing}
         >
           <ArrowLeft className="mr-2 h-4 w-4" /> Back
         </Button>
 
         <div className="space-y-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Add Product</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Edit Product</h1>
             <p className="text-muted-foreground mt-1">
-              Add a new product to track its expiry date
+              Update the product details below
             </p>
           </div>
 
-          {/* Photo capture */}
+          {/* Photo */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">Product Photo (Optional)</label>
+            <label className="text-sm font-medium">Product Photo</label>
             <input
               type="file"
               accept="image/*"
@@ -129,7 +148,7 @@ export default function AddProductPage() {
               onChange={handlePhotoCapture}
               className="hidden"
               id="photo-input"
-              disabled={isLoading}
+              disabled={isProcessing}
             />
             <label htmlFor="photo-input">
               <div className="relative border-2 border-dashed border-border rounded-xl p-8 text-center cursor-pointer hover:border-primary/50 hover:bg-accent/5 transition-all duration-200">
@@ -171,7 +190,7 @@ export default function AddProductPage() {
               placeholder="e.g. Milk, Bread, Shampoo"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              disabled={isLoading}
+              disabled={isProcessing}
               className="h-12 text-base"
             />
           </div>
@@ -186,7 +205,7 @@ export default function AddProductPage() {
               type="date"
               value={expiryDate}
               onChange={(e) => setExpiryDate(e.target.value)}
-              disabled={isLoading}
+              disabled={isProcessing}
               className="h-12 text-base"
             />
           </div>
@@ -202,7 +221,7 @@ export default function AddProductPage() {
               min="1"
               value={quantity}
               onChange={(e) => setQuantity(parseInt(e.target.value) || 1)}
-              disabled={isLoading}
+              disabled={isProcessing}
               className="h-12 text-base"
             />
           </div>
@@ -217,20 +236,20 @@ export default function AddProductPage() {
                 id="category-select"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                disabled={isLoading}
+                disabled={isProcessing}
                 className="w-full h-12 px-4 py-2 border border-input rounded-lg bg-background text-foreground text-base appearance-none cursor-pointer hover:border-primary/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-all"
               >
-                <option value="" className="py-2">Select a category</option>
-                <option value="Hair Products" className="py-2">Hair Products</option>
-                <option value="Body Lotion" className="py-2">Body Lotion</option>
-                <option value="Beverages" className="py-2">Beverages</option>
-                <option value="Snacks" className="py-2">Snacks</option>
-                <option value="Dairy" className="py-2">Dairy</option>
-                <option value="Canned Goods" className="py-2">Canned Goods</option>
-                <option value="Bakery" className="py-2">Bakery</option>
-                <option value="Household" className="py-2">Household</option>
-                <option value="Personal Care" className="py-2">Personal Care</option>
-                <option value="Other" className="py-2">Other</option>
+                <option value="">Select a category</option>
+                <option value="Hair Products">Hair Products</option>
+                <option value="Body Lotion">Body Lotion</option>
+                <option value="Beverages">Beverages</option>
+                <option value="Snacks">Snacks</option>
+                <option value="Dairy">Dairy</option>
+                <option value="Canned Goods">Canned Goods</option>
+                <option value="Bakery">Bakery</option>
+                <option value="Household">Household</option>
+                <option value="Personal Care">Personal Care</option>
+                <option value="Other">Other</option>
               </select>
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
                 <svg
@@ -248,16 +267,26 @@ export default function AddProductPage() {
             </div>
           </div>
 
-          {/* Save Button */}
-          <Button
-            className="w-full h-12 text-base font-semibold shadow-lg hover:shadow-xl transition-all"
-            onClick={handleSave}
-            disabled={isLoading || !name || !expiryDate}
-            size="lg"
-          >
-            {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
-            {uploading ? 'Uploading...' : mutation.isPending ? 'Saving...' : 'Save Product'}
-          </Button>
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1 h-12 rounded-full"
+              onClick={() => navigate('/home')}
+              disabled={isProcessing}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              className="flex-1 h-12 rounded-full font-semibold"
+              onClick={handleSave}
+              disabled={isProcessing || !name || !expiryDate}
+            >
+              {isProcessing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {uploading ? 'Uploading...' : mutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>
