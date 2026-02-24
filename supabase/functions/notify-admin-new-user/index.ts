@@ -2,22 +2,52 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 export const config = {
-  verify_jwt: false, // JWT turned off
+  verify_jwt: false,
 }
 
-// Secrets:
-// - RESEND_API_KEY
+// Secrets required:
+// - WHATSAPP_ACCESS_TOKEN
+// - WHATSAPP_PHONE_NUMBER_ID
+// - INTERNAL_SECRET
 // - SUPABASE_URL
 // - SUPABASE_SERVICE_ROLE_KEY
-// - INTERNAL_SECRET
 
-const ADMIN_EMAIL = 'samuelleonard63@gmail.com' // verified email
-const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')!
+const WHATSAPP_ACCESS_TOKEN = Deno.env.get('WHATSAPP_ACCESS_TOKEN')!
+const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get('WHATSAPP_PHONE_NUMBER_ID')!
 const INTERNAL_SECRET = Deno.env.get('INTERNAL_SECRET')!
+
+async function sendWhatsApp(to: string, templateName: string, components: object[]) {
+  const res = await fetch(
+    `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        to,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: { code: 'en_GB' },
+          components,
+        },
+      }),
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`WhatsApp API error: ${res.status} ${err}`)
+  }
+
+  return res.json()
+}
 
 serve(async (req) => {
   try {
-    // Internal secret check
     const secret = req.headers.get('x-internal-secret')
     if (secret !== INTERNAL_SECRET) {
       return new Response('Unauthorized', { status: 401 })
@@ -29,66 +59,77 @@ serve(async (req) => {
     )
 
     const payload = await req.json()
-    const newUser = payload?.record
+    const newUserId = payload?.record?.id
 
-    if (!newUser?.id) {
+    if (!newUserId) {
       return new Response('Invalid payload', { status: 400 })
     }
 
-    // Fetch user email from Supabase Auth
-    const { data: authUser, error: authError } =
-      await supabase.auth.admin.getUserById(newUser.id)
+    // Fetch new user's name and email from user_profiles
+    const { data: newUser, error: newUserError } = await supabase
+      .from('user_profiles')
+      .select('name, email')
+      .eq('id', newUserId)
+      .single()
 
-    if (authError || !authUser?.user) {
-      throw new Error('Failed to fetch auth user')
+    if (newUserError || !newUser) {
+      throw new Error('Failed to fetch new user profile')
     }
 
-    const userEmail = authUser.user.email || 'Unknown'
+    // Fetch all admins' phone numbers
+    const { data: admins, error: adminsError } = await supabase
+      .from('user_profiles')
+      .select('phone')
+      .eq('role', 'admin')
+      .eq('is_approved', true)
+      .not('phone', 'is', null)
 
-    // Send email via Resend API
-    const resendRes = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-      },
-      body: JSON.stringify({
-        from: `Expiro <${ADMIN_EMAIL}>`, // sender is the verified admin email
-        to: [ADMIN_EMAIL],
-        subject: '🔔 New Expiro Signup - Approval Needed',
-        html: `
-          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto;">
-            <h2>New User Signup</h2>
-            <p>A new user has signed up for Expiro and is waiting for your approval.</p>
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-              <tr>
-                <td style="padding: 8px; background: #f5f5f5; font-weight: bold;">Email</td>
-                <td style="padding: 8px; background: #f9f9f9;">${userEmail}</td>
-              </tr>
-              <tr>
-                <td style="padding: 8px; background: #f5f5f5; font-weight: bold;">Signed up</td>
-                <td style="padding: 8px; background: #f9f9f9;">${new Date().toLocaleString()}</td>
-              </tr>
-            </table>
-            <p>Open the Expiro app and go to <strong>Admin → Pending Users</strong> to approve or ignore this request.</p>
-          </div>
-        `,
-      }),
-    })
-
-    if (!resendRes.ok) {
-      const errText = await resendRes.text()
-      throw new Error(`Resend API error: ${resendRes.status} ${errText}`)
+    if (adminsError) {
+      throw new Error('Failed to fetch admin profiles')
     }
 
-    // Log notification in Supabase
-    await supabase.from('notifications').insert({
-      type: 'email',
-      status: 'sent',
-      product_id: null,
-    })
+    if (!admins || admins.length === 0) {
+      console.warn('No admins found to notify')
+      return new Response(JSON.stringify({ success: true, sent: 0 }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
+    // Send WhatsApp to every admin
+    const results = await Promise.allSettled(
+      admins.map((admin) =>
+        sendWhatsApp(
+          admin.phone,
+          'admin_new_signup_alert', // PLACEHOLDER: replace with approved template name
+          [
+            {
+              type: 'body',
+              parameters: [
+                { type: 'text', text: newUser.name || 'Unknown' },
+                { type: 'text', text: newUser.email || 'Unknown' },
+              ],
+            },
+          ]
+        )
+      )
+    )
+
+    // Log each attempt
+    await Promise.all(
+      results.map((result) =>
+        supabase.from('notifications').insert({
+          type: 'whatsapp',
+          status: result.status === 'fulfilled' ? 'sent' : 'failed',
+          product_id: null,
+          error_message: result.status === 'rejected' ? String(result.reason) : null,
+        })
+      )
+    )
+
+    const sent = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.filter((r) => r.status === 'rejected').length
+
+    return new Response(JSON.stringify({ success: true, sent, failed }), {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (err) {

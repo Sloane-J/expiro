@@ -257,40 +257,58 @@ export default function HomePage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9">
-                  <Settings className="h-6 w-6" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10 active:bg-white/30 dark:active:bg-zinc-800/60 transition-colors rounded-full"
+                >
+                  <Settings className="h-6 w-6 text-foreground/90" />
                 </Button>
               </DropdownMenuTrigger>
-
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem onClick={() => navigate("/profile")}>
-                  <User className="mr-2 h-4 w-4" /> Profile
+            
+              <DropdownMenuContent 
+                align="end" 
+                className="w-56 p-1.5 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border border-white/40 dark:border-zinc-800/50 shadow-2xl rounded-2xl"
+              >
+                <DropdownMenuItem 
+                  onClick={() => navigate("/profile")}
+                  className="h-11 rounded-lg active:bg-black/5 dark:active:bg-white/10 transition-all"
+                >
+                  <User className="mr-3 h-5 w-5 opacity-80" /> 
+                  <span className="font-medium">Profile</span>
                 </DropdownMenuItem>
-
-                <div className="flex items-center justify-between px-2 py-1.5 text-sm">
-                  <span>Theme</span>
-                  <ThemeToggle />
-                </div>
-
+            
                 {profile?.role === "admin" && (
                   <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => navigate("/admin")}>
-                      <ShieldCheck className="mr-2 h-4 w-4" /> Approvals
+                    <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
+                    <DropdownMenuItem 
+                      onClick={() => navigate("/admin")}
+                      className="h-11 rounded-lg active:bg-black/5 dark:active:bg-white/10 transition-all"
+                    >
+                      <ShieldCheck className="mr-3 h-5 w-5 opacity-80" /> 
+                      <span className="font-medium">Approvals</span>
                     </DropdownMenuItem>
                   </>
                 )}
-
-                <DropdownMenuSeparator />
-
+            
+                <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
+            
+                <div className="flex items-center justify-between px-3 py-2 text-sm">
+                  <span className="font-medium opacity-70">Theme</span>
+                  <ThemeToggle />
+                </div>
+            
+                <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
+            
                 <DropdownMenuItem
                   onClick={async () => {
                     await signOut();
                     navigate("/login");
                   }}
-                  className="text-destructive font-semibold"
+                  className="h-11 rounded-lg text-destructive font-semibold active:bg-destructive/10 transition-all"
                 >
-                  <LogOut className="mr-2 h-4 w-4" /> Logout
+                  <LogOut className="mr-3 h-5 w-5" /> 
+                  <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
