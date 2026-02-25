@@ -65,75 +65,64 @@ serve(async (req) => {
       return new Response('Invalid payload', { status: 400 })
     }
 
-    // Fetch new user's name and email from user_profiles
-    const { data: newUser, error: newUserError } = await supabase
+    // Fetch new user's name and phone from user_profiles
+    const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('name, email')
+      .select('name, phone')
       .eq('id', newUserId)
       .single()
 
-    if (newUserError || !newUser) {
+    if (profileError || !profile) {
       throw new Error('Failed to fetch new user profile')
     }
 
-    // Fetch all admins' phone numbers
-    const { data: admins, error: adminsError } = await supabase
-      .from('user_profiles')
-      .select('phone')
-      .eq('role', 'admin')
-      .eq('is_approved', true)
-      .not('phone', 'is', null)
-
-    if (adminsError) {
-      throw new Error('Failed to fetch admin profiles')
-    }
-
-    if (!admins || admins.length === 0) {
-      console.warn('No admins found to notify')
-      return new Response(JSON.stringify({ success: true, sent: 0 }), {
+    if (!profile.phone) {
+      console.warn('New user has no phone number, skipping notification')
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
         headers: { 'Content-Type': 'application/json' },
       })
     }
 
-    // Send WhatsApp to every admin
-    const results = await Promise.allSettled(
-      admins.map((admin) =>
-        sendWhatsApp(
-          admin.phone,
-          'admin_new_signup_alert', // PLACEHOLDER: replace with approved template name
-          [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: newUser.name || 'Unknown' },
-                { type: 'text', text: newUser.email || 'Unknown' },
-              ],
-            },
-          ]
-        )
-      )
+    // Send WhatsApp to the new user confirming their request was received
+    await sendWhatsApp(
+      profile.phone,
+      'user_signup_received', // PLACEHOLDER: replace with approved template name
+      [
+        {
+          type: 'body',
+          parameters: [
+            { type: 'text', text: profile.name || 'there' },
+          ],
+        },
+      ]
     )
 
-    // Log each attempt
-    await Promise.all(
-      results.map((result) =>
-        supabase.from('notifications').insert({
-          type: 'whatsapp',
-          status: result.status === 'fulfilled' ? 'sent' : 'failed',
-          product_id: null,
-          error_message: result.status === 'rejected' ? String(result.reason) : null,
-        })
-      )
-    )
+    // Log notification
+    await supabase.from('notifications').insert({
+      type: 'whatsapp',
+      status: 'sent',
+      product_id: null,
+      error_message: null,
+    })
 
-    const sent = results.filter((r) => r.status === 'fulfilled').length
-    const failed = results.filter((r) => r.status === 'rejected').length
-
-    return new Response(JSON.stringify({ success: true, sent, failed }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { 'Content-Type': 'application/json' },
     })
   } catch (err) {
-    console.error('notify-admin-new-user error:', err)
+    console.error('notify-user-signup-received error:', err)
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    )
+
+    await supabase.from('notifications').insert({
+      type: 'whatsapp',
+      status: 'failed',
+      product_id: null,
+      error_message: String(err),
+    })
+
     return new Response(JSON.stringify({ error: String(err) }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

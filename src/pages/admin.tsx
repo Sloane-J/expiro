@@ -6,6 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { supabase } from '@/lib/supabase'
 
+const SUPABASE_FUNCTIONS_URL = import.meta.env.VITE_SUPABASE_FUNCTIONS_URL
+const INTERNAL_SECRET = import.meta.env.VITE_INTERNAL_SECRET
+
 type PendingUser = {
   id: string
   name: string | null
@@ -15,25 +18,20 @@ type PendingUser = {
   created_at: string
 }
 
-async function sendWhatsAppApprovalNotification(phone: string, _name: string | null) {
-  // TODO: Wire up WhatsApp Business Cloud API here
-  // await fetch('https://graph.facebook.com/v18.0/PHONE_NUMBER_ID/messages', {
-  //   method: 'POST',
-  //   headers: {
-  //     'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
-  //     'Content-Type': 'application/json',
-  //   },
-  //   body: JSON.stringify({
-  //     messaging_product: 'whatsapp',
-  //     to: phone,
-  //     type: 'text',
-  //     text: {
-  //       body: `Hi${_name ? ` ${_name}` : ''}! Your Expiro account has been approved. You can now log in at ${window.location.origin}`
-  //     }
-  //   })
-  // })
-  console.log(`[WhatsApp placeholder] Approval notification would be sent to ${phone}`)
-  return true
+async function notifyApprovedUser(userId: string) {
+  try {
+    await fetch(`${SUPABASE_FUNCTIONS_URL}/notify-user-account-approved`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-internal-secret': INTERNAL_SECRET,
+      },
+      body: JSON.stringify({ user_id: userId }),
+    })
+  } catch (err) {
+    // Don't block approval if notification fails
+    console.error('Failed to send approval WhatsApp notification:', err)
+  }
 }
 
 export default function AdminPage() {
@@ -64,8 +62,9 @@ export default function AdminPage() {
 
       if (error) throw error
 
+      // Fire WhatsApp notification (non-blocking)
       if (user.phone) {
-        await sendWhatsAppApprovalNotification(user.phone, user.name)
+        notifyApprovedUser(user.id)
       }
 
       return user
