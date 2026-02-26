@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -130,7 +129,8 @@ export default function HomePage() {
     },
   });
 
-  const handleDeleteClick = (id: string, name: string) => {
+  const handleDeleteClick = (e: React.MouseEvent, id: string, name: string) => {
+    e.stopPropagation();
     setProductToDelete({ id, name });
     setDeleteDialogOpen(true);
   };
@@ -245,6 +245,7 @@ export default function HomePage() {
     <div className="min-h-screen bg-background">
       <InstallPrompt />
 
+      {/* Header */}
       <div className="sticky top-0 z-10 bg-background border-b">
         <div className="max-w-2xl mx-auto px-4 pt-4 pb-2">
           <div className="flex items-center justify-between">
@@ -257,49 +258,49 @@ export default function HomePage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-10 w-10 active:bg-white/30 dark:active:bg-zinc-800/60 transition-colors rounded-full"
                 >
                   <Settings className="h-6 w-6 text-foreground/90" />
                 </Button>
               </DropdownMenuTrigger>
-            
-              <DropdownMenuContent 
-                align="end" 
+
+              <DropdownMenuContent
+                align="end"
                 className="w-56 p-1.5 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border border-white/40 dark:border-zinc-800/50 shadow-2xl rounded-2xl"
               >
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => navigate("/profile")}
                   className="h-11 rounded-lg active:bg-black/5 dark:active:bg-white/10 transition-all"
                 >
-                  <User className="mr-3 h-5 w-5 opacity-80" /> 
+                  <User className="mr-3 h-5 w-5 opacity-80" />
                   <span className="font-medium">Profile</span>
                 </DropdownMenuItem>
-            
+
                 {profile?.role === "admin" && (
                   <>
                     <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={() => navigate("/admin")}
                       className="h-11 rounded-lg active:bg-black/5 dark:active:bg-white/10 transition-all"
                     >
-                      <ShieldCheck className="mr-3 h-5 w-5 opacity-80" /> 
+                      <ShieldCheck className="mr-3 h-5 w-5 opacity-80" />
                       <span className="font-medium">Approvals</span>
                     </DropdownMenuItem>
                   </>
                 )}
-            
+
                 <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
-            
+
                 <div className="flex items-center justify-between px-3 py-2 text-sm">
                   <span className="font-medium opacity-70">Theme</span>
                   <ThemeToggle />
                 </div>
-            
+
                 <DropdownMenuSeparator className="my-1 bg-black/10 dark:bg-white/10" />
-            
+
                 <DropdownMenuItem
                   onClick={async () => {
                     await signOut();
@@ -307,7 +308,7 @@ export default function HomePage() {
                   }}
                   className="h-11 rounded-lg text-destructive font-semibold active:bg-destructive/10 transition-all"
                 >
-                  <LogOut className="mr-3 h-5 w-5" /> 
+                  <LogOut className="mr-3 h-5 w-5" />
                   <span>Logout</span>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -349,8 +350,9 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Product list */}
       <div
-        className="p-4 max-w-2xl mx-auto pb-20"
+        className="max-w-2xl mx-auto pb-24"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -358,7 +360,7 @@ export default function HomePage() {
         {/* Pull to refresh indicator */}
         {pullDistance > 10 && (
           <div
-            className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2 transition-all"
+            className="flex justify-center items-center gap-2 text-muted-foreground text-sm transition-all"
             style={{ height: `${Math.min(pullDistance, PULL_THRESHOLD)}px` }}
           >
             <RefreshCw
@@ -375,123 +377,123 @@ export default function HomePage() {
         )}
 
         {isRefreshing && (
-          <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm mb-2">
+          <div className="flex justify-center items-center gap-2 text-muted-foreground text-sm py-3">
             <Loader2 className="h-4 w-4 animate-spin" />
             <span>Refreshing...</span>
           </div>
         )}
 
-        <div className="space-y-2">
-          {/* Empty state: no products at all */}
-          {products?.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-              <div className="rounded-full bg-muted p-6 mb-4">
-                <Package className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h2 className="text-lg font-semibold mb-1">No products yet</h2>
-              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-                Start tracking expiry dates by adding your first product.
-              </p>
-              <Button
-                onClick={() => navigate("/add-product")}
-                className="rounded-full px-6"
-              >
-                <Plus className="mr-2 h-4 w-4" /> Add First Product
-              </Button>
+        {/* Empty state: no products at all */}
+        {products?.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+            <div className="rounded-full bg-muted p-6 mb-4">
+              <Package className="h-10 w-10 text-muted-foreground" />
             </div>
-          )}
+            <h2 className="text-lg font-semibold mb-1">No products yet</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+              Start tracking expiry dates by adding your first product.
+            </p>
+            <Button
+              onClick={() => navigate("/add-product")}
+              className="rounded-full px-6"
+            >
+              <Plus className="mr-2 h-4 w-4" /> Add First Product
+            </Button>
+          </div>
+        )}
 
-          {/* Empty state: has products but filter/search returns nothing */}
-          {(products?.length ?? 0) > 0 && filteredProducts?.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-24 text-center px-4">
-              <div className="rounded-full bg-muted p-6 mb-4">
-                <SearchX className="h-10 w-10 text-muted-foreground" />
-              </div>
-              <h2 className="text-lg font-semibold mb-1">No results found</h2>
-              <p className="text-sm text-muted-foreground mb-6 max-w-xs">
-                No products match your current search or filter.
-              </p>
-              <Button
-                variant="outline"
-                className="rounded-full px-6"
-                onClick={() => {
-                  setSearchQuery("");
-                  setFilter("all");
-                }}
-              >
-                Clear filters
-              </Button>
+        {/* Empty state: filter/search returns nothing */}
+        {(products?.length ?? 0) > 0 && filteredProducts?.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center px-4">
+            <div className="rounded-full bg-muted p-6 mb-4">
+              <SearchX className="h-10 w-10 text-muted-foreground" />
             </div>
-          )}
+            <h2 className="text-lg font-semibold mb-1">No results found</h2>
+            <p className="text-sm text-muted-foreground mb-6 max-w-xs">
+              No products match your current search or filter.
+            </p>
+            <Button
+              variant="outline"
+              className="rounded-full px-6"
+              onClick={() => {
+                setSearchQuery("");
+                setFilter("all");
+              }}
+            >
+              Clear filters
+            </Button>
+          </div>
+        )}
 
-          {/* Product list */}
-          {filteredProducts?.map((product) => {
-            const status = getProductStatus(product.expiry_date);
+        {/* Feed-style product list */}
+        {filteredProducts?.map((product, index) => {
+          const status = getProductStatus(product.expiry_date);
 
-            return (
-              <Card
-                key={product.id}
-                className="overflow-hidden border-border/50 shadow-sm cursor-pointer active:opacity-70 transition-opacity"
+          return (
+            <div key={product.id}>
+              <div
+                className="flex gap-3 items-center px-4 py-3 cursor-pointer active:opacity-60 transition-opacity"
                 onClick={() => navigate(`/products/${product.id}`)}
               >
-                <CardContent className="px-3 py-2">
-                  <div className="flex gap-3 items-start">
-                    {product.photo_url && (
-                      <img
-                        src={product.photo_url}
-                        alt={product.name}
-                        className="w-14 h-14 rounded object-cover shrink-0"
-                      />
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-semibold text-sm truncate leading-snug">
-                        {product.name}
-                      </h3>
-
-                      <p className="font-semibold text-sm text-foreground mt-0.5">
-                        Exp:{" "}
-                        {new Date(product.expiry_date).toLocaleDateString(
-                          "en-GB",
-                        )}
-                      </p>
-
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap text-xs text-muted-foreground">
-                        {product.category && (
-                          <p className="truncate">{product.category}</p>
-                        )}
-                        {product.quantity > 1 && (
-                          <p>• Qty: {product.quantity}</p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      <Badge
-                        className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
-                      >
-                        {status.replace("_", " ")}
-                      </Badge>
-
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() =>
-                          handleDeleteClick(product.id, product.name)
-                        }
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </div>
+                {/* Product photo */}
+                {product.photo_url ? (
+                  <img
+                    src={product.photo_url}
+                    alt={product.name}
+                    className="w-14 h-14 rounded-lg object-cover shrink-0"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <Package className="h-6 w-6 text-muted-foreground" />
                   </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                )}
+
+                {/* Product info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-sm truncate leading-snug">
+                    {product.name}
+                  </h3>
+                  <p className="text-sm text-foreground mt-0.5">
+                    Exp:{" "}
+                    {new Date(product.expiry_date).toLocaleDateString("en-GB")}
+                  </p>
+                  {product.category && (
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {product.category}
+                      {product.quantity > 1 && ` · Qty: ${product.quantity}`}
+                    </p>
+                  )}
+                </div>
+
+                {/* Status + delete */}
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                  <Badge
+                    className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
+                  >
+                    {status.replace("_", " ")}
+                  </Badge>
+                  <button
+                    type="button"
+                    className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+                    onClick={(e) =>
+                      handleDeleteClick(e, product.id, product.name)
+                    }
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Divider — skip after last item */}
+              {index < filteredProducts.length - 1 && (
+                <div className="h-px bg-border/50 mx-4" />
+              )}
+            </div>
+          );
+        })}
       </div>
 
+      {/* FAB */}
       <div className="fixed bottom-6 right-6">
         <Button
           onClick={() => navigate("/add-product")}
@@ -502,6 +504,7 @@ export default function HomePage() {
         </Button>
       </div>
 
+      {/* Delete confirmation */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent className="rounded-2xl">
           <AlertDialogHeader>
@@ -511,12 +514,10 @@ export default function HomePage() {
               action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-
           <AlertDialogFooter>
             <AlertDialogCancel className="rounded-full">
               Cancel
             </AlertDialogCancel>
-
             <AlertDialogAction
               onClick={handleDeleteConfirm}
               className="bg-destructive text-white rounded-full"

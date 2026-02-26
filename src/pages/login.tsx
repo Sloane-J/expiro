@@ -83,7 +83,7 @@ export default function LoginPage() {
   return (
     <div
       className="relative min-h-screen w-full flex items-center justify-center p-6 overflow-hidden"
-      style={{ backgroundColor: "#171717" }}
+      style={{ backgroundColor: "#000000" }}
     >
       {/* Subtle noise texture overlay */}
       <div
@@ -326,7 +326,7 @@ export default function LoginPage() {
           </button>
         </p>
 
-        <p className="text-center text-xs mt-8 fu-6" style={{ color: "rgba(255,255,255,0.12)" }}>
+        <p className="text-center text-xs mt-8 fu-6" style={{ color: "rgba(128,128,128,0.51)" }}>
           Expiro — Expiry tracking for minimarts
         </p>
       </main>

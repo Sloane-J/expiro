@@ -14,7 +14,6 @@ async function callEdgeFunction(fnName: string, body: object) {
       body: JSON.stringify(body),
     });
   } catch (err) {
-    // Don't block signup if notification fails
     console.error(`Edge function ${fnName} failed:`, err);
   }
 }
@@ -42,7 +41,13 @@ export async function signUp(
       .update({ phone, email, name })
       .eq("id", data.user.id);
 
-    // Fire both notifications — don't await, don't block signup
+    // Marked this signout as "pending approval" so the UI shows the right message
+    localStorage.setItem("auth:signout_reason", "pending_approval");
+
+    // Sign out immediately — user must wait for admin approval before logging in
+    await supabase.auth.signOut();
+
+    // Fire notifications after signout (non-blocking)
     callEdgeFunction("notify-admin-new-user", { record: { id: data.user.id } });
     callEdgeFunction("notify-user-signup-received", {
       record: { id: data.user.id },
