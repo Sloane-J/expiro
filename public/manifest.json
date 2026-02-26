@@ -4,9 +4,10 @@
   "id": "/",
   "description": "Track product expiry dates and get reminders",
   "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "display": "fullscreen",
+  "scope": "/",
+  "background_color": "#171717",
+  "theme_color": "#171717",
   "orientation": "portrait",
   "icons": [
     {
