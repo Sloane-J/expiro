@@ -432,33 +432,33 @@ export default function HomePage() {
           return (
             <div key={product.id}>
               <div
-                className="flex gap-3 items-center px-4 py-3 cursor-pointer active:opacity-60 transition-opacity"
+                className="flex gap-4 items-center px-4 py-5 cursor-pointer active:opacity-60 transition-opacity"
                 onClick={() => navigate(`/products/${product.id}`)}
               >
-                {/* Product photo */}
+                {/* Product photo — larger for mobile readability */}
                 {product.photo_url ? (
                   <img
                     src={product.photo_url}
                     alt={product.name}
-                    className="w-14 h-14 rounded-lg object-cover shrink-0"
+                    className="w-20 h-20 rounded-xl object-cover shrink-0"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
-                    <Package className="h-6 w-6 text-muted-foreground" />
+                  <div className="w-20 h-20 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                    <Package className="h-9 w-9 text-muted-foreground" />
                   </div>
                 )}
 
                 {/* Product info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-sm truncate leading-snug">
+                  <h3 className="font-semibold text-base truncate leading-snug">
                     {product.name}
                   </h3>
-                  <p className="text-sm text-foreground mt-0.5">
+                  <p className="text-sm text-foreground mt-1">
                     Exp:{" "}
                     {new Date(product.expiry_date).toLocaleDateString("en-GB")}
                   </p>
                   {product.category && (
-                    <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                    <p className="text-sm text-muted-foreground mt-1 truncate">
                       {product.category}
                       {product.quantity > 1 && ` · Qty: ${product.quantity}`}
                     </p>
@@ -466,20 +466,20 @@ export default function HomePage() {
                 </div>
 
                 {/* Status + delete */}
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                <div className="flex flex-col items-end gap-2.5 shrink-0">
                   <Badge
-                    className={`text-[10px] font-semibold rounded-full px-2 border ${getStatusColor(status)}`}
+                    className={`text-xs font-semibold rounded-full px-2.5 py-0.5 border ${getStatusColor(status)}`}
                   >
                     {status.replace("_", " ")}
                   </Badge>
                   <button
                     type="button"
-                    className="h-7 w-7 flex items-center justify-center rounded-full hover:bg-muted transition-colors"
+                    className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-muted active:bg-muted transition-colors"
                     onClick={(e) =>
                       handleDeleteClick(e, product.id, product.name)
                     }
                   >
-                    <Trash2 className="h-4 w-4 text-destructive" />
+                    <Trash2 className="h-5 w-5 text-destructive" />
                   </button>
                 </div>
               </div>
