@@ -3,8 +3,8 @@ import { supabase } from './supabase'
 
 export async function compressImage(file: File): Promise<File> {
   const options = {
-    maxSizeMB: 0.5, // 500KB max
-    maxWidthOrHeight: 1024, // Max dimension
+    maxSizeMB: 0.5,
+    maxWidthOrHeight: 1024, 
     useWebWorker: true,
   }
   
@@ -19,22 +19,19 @@ export async function compressImage(file: File): Promise<File> {
 
 export async function uploadProductPhoto(file: File): Promise<string | null> {
   try {
-    // Compress image first
+   
     const compressedFile = await compressImage(file)
     
-    // Generate unique filename
     const fileExt = compressedFile.name.split('.').pop()
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
     const filePath = `products/${fileName}`
     
-    // Upload to Supabase Storage
     const { error } = await supabase.storage
       .from('product-photos')
       .upload(filePath, compressedFile)
     
     if (error) throw error
     
-    // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('product-photos')
       .getPublicUrl(filePath)

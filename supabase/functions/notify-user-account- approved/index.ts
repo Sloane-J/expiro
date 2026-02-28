@@ -66,7 +66,7 @@ serve(async (req) => {
       return new Response('Missing user_id', { status: 400 })
     }
 
-    // Fetch approved user's name and phone
+    // Fetch approved user's name and phone from user_profiles
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('name, phone')
@@ -84,7 +84,7 @@ serve(async (req) => {
       })
     }
 
-    // Send WhatsApp to the approved user
+    // Send WhatsApp message to the approved user
     await sendWhatsApp(
       profile.phone,
       'user_account_approved', // PLACEHOLDER: replace with approved template name

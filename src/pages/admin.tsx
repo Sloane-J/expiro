@@ -29,7 +29,7 @@ async function notifyApprovedUser(userId: string) {
       body: JSON.stringify({ user_id: userId }),
     })
   } catch (err) {
-    // Don't block approval if notification fails
+    // Do not block approval if notification fails
     console.error('Failed to send approval WhatsApp notification:', err)
   }
 }
@@ -62,7 +62,7 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      // Fire WhatsApp notification (non-blocking)
+      // Fire WhatsApp notification(non-blocking)
       if (user.phone) {
         notifyApprovedUser(user.id)
       }
