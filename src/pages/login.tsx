@@ -165,7 +165,7 @@ export default function LoginPage() {
             <ShoppingCartIcon />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">
-            {isSignUp ? "Sign Up" : "Welcome back"}
+            {isSignUp ? "Request Access" : "Welcome back"}
           </h1>
           <p className="text-sm mt-1.5" style={{ color: "rgba(255,255,255,0.38)" }}>
             {isSignUp ? "Create your Expiro account" : "Sign in to Expiro"}
@@ -303,7 +303,7 @@ export default function LoginPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  {isSignUp ? "Sign Up" : "Sign In"}
+                  {isSignUp ? "Request Access" : "Sign In"}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -322,7 +322,7 @@ export default function LoginPage() {
             className="font-semibold transition-opacity hover:opacity-80"
             style={{ color: "#ff6900" }}
           >
-            {isSignUp ? "Sign in" : "Sign Up"}
+            {isSignUp ? "Sign in" : "Request Access"}
           </button>
         </p>
 
