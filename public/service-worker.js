@@ -1,4 +1,3 @@
-const CACHE_NAME = 'expiro-v2'; // Increment version to force update
 const STATIC_CACHE = 'expiro-static-v2';
 const API_CACHE = 'expiro-api-v2';
 
@@ -28,6 +27,7 @@ self.addEventListener('activate', (event) => {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
+          return Promise.resolve();
         })
       );
     })
@@ -51,11 +51,8 @@ self.addEventListener('fetch', (event) => {
       caches.open(STATIC_CACHE).then((cache) => {
         return cache.match(event.request).then((cachedResponse) => {
           if (cachedResponse) {
-            // Return cached version immediately
             return cachedResponse;
           }
-
-          // Not in cache, fetch and cache it
           return fetch(event.request).then((response) => {
             if (response.status === 200) {
               cache.put(event.request, response.clone());
@@ -76,7 +73,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          // Cache successful API responses
           if (response.status === 200) {
             caches.open(API_CACHE).then((cache) => {
               cache.put(event.request, response.clone());
@@ -85,8 +81,9 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // If network fails, try cache
-          return caches.match(event.request);
+          return caches.match(event.request).then((cached) => {
+            return cached ?? new Response(null, { status: 503 });
+          });
         })
     );
     return;
@@ -103,7 +100,9 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          return caches.match(event.request);
+          return caches.match(event.request).then((cached) => {
+            return cached ?? new Response(null, { status: 503 });
+          });
         })
     );
     return;
@@ -112,7 +111,9 @@ self.addEventListener('fetch', (event) => {
   // Default: try network, fallback to cache
   event.respondWith(
     fetch(event.request).catch(() => {
-      return caches.match(event.request);
+      return caches.match(event.request).then((cached) => {
+        return cached ?? new Response(null, { status: 503 });
+      });
     })
   );
 });
