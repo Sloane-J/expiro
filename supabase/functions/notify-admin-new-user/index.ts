@@ -93,26 +93,24 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, sent: 0 }), {
         headers: { 'Content-Type': 'application/json' },
       })
-    }
-
-    // Send WhatsApp to every admin
-    const results = await Promise.allSettled(
-      admins.map((admin) =>
-        sendWhatsApp(
-          admin.phone,
-          'admin_new_signup_alert', // PLACEHOLDER: replace with approved template name
-          [
-            {
-              type: 'body',
-              parameters: [
-                { type: 'text', text: newUser.name || 'Unknown' },
-                { type: 'text', text: newUser.email || 'Unknown' },
-              ],
-            },
-          ]
-        )
-      )
-    )
+    }				// Send WhatsApp to every user with role=admin
+				const results = await Promise.allSettled(
+					admins.map((admin) =>
+						sendWhatsApp(
+							admin.phone,
+							"admin_new_signup_alert", // PLACEHOLDER: replace with approved template name
+							[
+								{
+									type: "body",
+									parameters: [
+										{ type: "text", text: newUser.name || "Unknown" },
+										{ type: "text", text: newUser.email || "Unknown" },
+									],
+								},
+							],
+						),
+					),
+				)
 
     // Log each attempt
     await Promise.all(

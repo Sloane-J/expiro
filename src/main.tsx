@@ -19,7 +19,7 @@ if ('caches' in window) {
   });
 }
 
-// Register Service Worker for PWA
+// Service Worker Register for PWA
 if ("serviceWorker" in navigator) {
 	window.addEventListener("load", () => {
 		navigator.serviceWorker

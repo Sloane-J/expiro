@@ -26,9 +26,9 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// --------------------
+// -------------------
 // Dialog renderer
-// --------------------
+// -------------------
 function showAuthDialog(title: string, description: string) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -109,7 +109,6 @@ supabase.auth.onAuthStateChange((event, session) => {
         return;
       }
 
-      // Manual logout → just redirect quietly
       redirectToLogin();
       return;
     }

@@ -425,7 +425,7 @@ export default function HomePage() {
 					</div>
 				)}
 
-				{/* Feed-style product list */}
+				{/* Product list */}
 				{filteredProducts?.map((product, index) => {
 					const status = getProductStatus(product.expiry_date);
 
@@ -438,7 +438,7 @@ export default function HomePage() {
   onClick={() => navigate(`/products/${product.id}`)}
   onKeyDown={(e) => e.key === "Enter" && navigate(`/products/${product.id}`)}
 >
-								{/* Product photo — larger for mobile readability */}
+								{/* Product image */}
 								{product.photo_url ? (
 									<img
 										src={product.photo_url}
@@ -491,7 +491,7 @@ export default function HomePage() {
 								</div>
 							</div>
 
-							{/* Divider — skip after last item */}
+							{/* Divider */}
 							{index < filteredProducts.length - 1 && (
 								<div className="h-px bg-border/50 mx-4" />
 							)}
