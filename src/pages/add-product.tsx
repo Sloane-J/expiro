@@ -7,13 +7,18 @@ import {
   ScanBarcode,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarcodeScanner } from "@/components/barcode-scanner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { addProduct } from "@/lib/products";
 import { uploadProductPhoto } from "@/lib/storage";
+
+const BarcodeScanner = lazy(() =>
+  import("@/components/barcode-scanner").then((m) => ({
+    default: m.BarcodeScanner,
+  }))
+);
 
 export default function AddProductPage() {
   const navigate = useNavigate();
@@ -108,12 +113,18 @@ export default function AddProductPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-4">
-      {/* Barcode Scanner Overlay */}
+      {/* Barcode Scanner Overlay — only downloaded when showScanner is true */}
       {showScanner && (
-        <BarcodeScanner
-          onDetected={handleBarcodeDetected}
-          onClose={() => setShowScanner(false)}
-        />
+        <Suspense fallback={
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        }>
+          <BarcodeScanner
+            onDetected={handleBarcodeDetected}
+            onClose={() => setShowScanner(false)}
+          />
+        </Suspense>
       )}
 
       {/* Toast Notification */}
@@ -153,7 +164,7 @@ export default function AddProductPage() {
 
           {/* Photo capture */}
           <div className="space-y-2">
-            <label className="text-sm font-medium">
+            <label htmlFor="photo-input" className="text-sm font-medium">
               Product Photo (Optional)
             </label>
             <input
