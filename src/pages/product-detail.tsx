@@ -8,6 +8,13 @@ import { Input } from "@/components/ui/input";
 import { getProductById, updateProduct } from "@/lib/products";
 import { uploadProductPhoto } from "@/lib/storage";
 
+/**
+ * Renders the product edit page that loads a product by route id, pre-fills a form, and allows updating its details and photo.
+ *
+ * The component fetches the product, initializes form fields once, supports selecting or capturing a new photo (uploads it when saving), updates the product record, invalidates relevant queries, shows success/error toasts, and navigates back to the home screen on success.
+ *
+ * @returns The JSX element for the product detail/edit page.
+ */
 export default function ProductDetailPage() {
 	const { id } = useParams<{ id: string }>();
 	const navigate = useNavigate();

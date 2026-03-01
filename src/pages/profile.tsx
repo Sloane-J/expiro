@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
 
+/**
+ * Render a profile page that displays and lets the current user edit their email, name, and phone.
+ *
+ * Loads the user's profile when authentication changes, allows updating name and phone which are upserted to the backend, and shows success or error feedback.
+ *
+ * @returns The JSX element for the profile page UI.
+ */
 export default function ProfilePage() {
 	const navigate = useNavigate();
 	const { user } = useAuth();

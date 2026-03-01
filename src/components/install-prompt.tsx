@@ -2,6 +2,13 @@ import { Download, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 
+/**
+ * Displays an in-app install prompt when the browser emits a `beforeinstallprompt` event and the user hasn't dismissed it recently.
+ *
+ * The component listens for the browser install prompt, shows a UI offering install or dismiss actions, persists a dismissal timestamp to localStorage for seven days, and hides itself if dismissed within that window.
+ *
+ * @returns A JSX element containing the install prompt UI, or `null` when the prompt should not be shown.
+ */
 export function InstallPrompt() {
 	const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 	const [showPrompt, setShowPrompt] = useState(false);

@@ -33,6 +33,16 @@ const ShoppingCartIcon = () => (
 	</svg>
 );
 
+/**
+ * Renders the authentication page that provides both sign-in and sign-up flows.
+ *
+ * The component displays email and password fields, an optional username and WhatsApp
+ * number for sign-up, client-side validation for required signup fields, a password
+ * visibility toggle, loading and feedback messages, and navigation to the app home
+ * after a successful sign-in.
+ *
+ * @returns The React element for the combined login / request-access page.
+ */
 export default function LoginPage() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [email, setEmail] = useState("");

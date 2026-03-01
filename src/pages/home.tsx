@@ -44,6 +44,11 @@ import { supabase } from "@/lib/supabase";
 
 type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
 
+/**
+ * Renders the inventory home page UI including profile header, search input, filter chips, product list with status badges and delete flow, pull-to-refresh, and add-product FAB.
+ *
+ * @returns The React element for the inventory management home page.
+ */
 export default function HomePage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();

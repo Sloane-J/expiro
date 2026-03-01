@@ -15,6 +15,15 @@ import { Input } from "@/components/ui/input";
 import { addProduct } from "@/lib/products";
 import { uploadProductPhoto } from "@/lib/storage";
 
+/**
+ * Render the Add Product page and manage the product creation workflow.
+ *
+ * Handles product name entry and barcode scanning, optional photo capture and upload,
+ * expiry date, quantity and category selection, form submission via the `addProduct` mutation,
+ * toast notifications, and navigation back to the home page on success.
+ *
+ * @returns The Add Product page component's JSX element.
+ */
 export default function AddProductPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
