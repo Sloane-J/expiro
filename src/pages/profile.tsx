@@ -50,7 +50,7 @@ export default function ProfilePage() {
 		});
 
 		if (error) {
-			setMessage("Error saving profile: "  error.message);
+			setMessage("Error saving profile: " + error.message);
 		} else {
 			setMessage("Profile saved successfully!");
 		}
