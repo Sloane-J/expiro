@@ -23,23 +23,20 @@ export default function ProfilePage() {
 	const [message, setMessage] = useState("");
 
 	useEffect(() => {
-		loadProfile();
-	}, [user]);
-
-	async function loadProfile() {
-		if (!user) return;
-
-		const { data } = await supabase
-			.from("user_profiles")
-			.select("*")
-			.eq("id", user.id)
-			.single();
-
-		if (data) {
-			setName(data.name || "");
-			setPhone(data.phone || "");
-		}
-	}
+			const loadProfile = async () => {
+				if (!user) return;
+				const { data } = await supabase
+					.from("user_profiles")
+					.select("*")
+					.eq("id", user.id)
+					.single();
+				if (data) {
+					setName(data.name || "");
+					setPhone(data.phone || "");
+				}
+			};
+			void loadProfile();
+		}, [user]);
 
 	async function saveProfile() {
 		if (!user) return;
@@ -53,7 +50,7 @@ export default function ProfilePage() {
 		});
 
 		if (error) {
-			setMessage("Error saving profile: " + error.message);
+			setMessage("Error saving profile: "  error.message);
 		} else {
 			setMessage("Profile saved successfully!");
 		}
@@ -77,13 +74,14 @@ export default function ProfilePage() {
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div>
-						<label className="text-sm font-medium">Email</label>
-						<Input value={user?.email || ""} disabled />
+						<label htmlFor="profile-email" className="text-sm font-medium">Email</label>
+						<Input id="profile-email" value={user?.email || ""} disabled />
 					</div>
 
 					<div>
-						<label className="text-sm font-medium">Name</label>
+						<label htmlFor="profile-name" className="text-sm font-medium">Name</label>
 						<Input
+						  id="prfile-name"
 							placeholder="Your name"
 							value={name}
 							onChange={(e) => setName(e.target.value)}
@@ -91,8 +89,9 @@ export default function ProfilePage() {
 					</div>
 
 					<div>
-						<label className="text-sm font-medium">Phone</label>
+						<label htmlFor="profile-phone" className="text-sm font-medium">Phone</label>
 						<Input
+						id="profile-phone"
 							placeholder="Phone number"
 							value={phone}
 							onChange={(e) => setPhone(e.target.value)}

@@ -83,7 +83,7 @@ serve(async (req) => {
       })
     }
 
-    // Send WhatsApp to the new user confirming their request was received
+    // Send WhatsApp message to the new user confirming their request was received
     await sendWhatsApp(
       profile.phone,
       'user_signup_received', // PLACEHOLDER: replace with approved template name

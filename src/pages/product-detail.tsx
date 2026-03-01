@@ -30,25 +30,25 @@ export default function ProductDetailPage() {
 	const [hydrated, setHydrated] = useState(false);
 
 	// Fetch product and populate form
-	const { isLoading, error } = useQuery({
-		queryKey: ["product", id],
-		queryFn: () => getProductById(id!),
-		enabled: !!id,
-		staleTime: 0,
-		refetchOnMount: true
-		
-		// Populate form fields once data arrives
-		select: (data) => {
-			if (!hydrated) {
-				setName(data.name);
-				setExpiryDate(data.expiry_date);
-				setQuantity(data.quantity);
-				setCategory(data.category || "");
-				setPhotoPreview(data.photo_url || null);
-				setHydrated(true);
-			}
-			return data;
-		},
+		const { isLoading, error } = useQuery({
+			queryKey: ["product", id],
+			queryFn: () => getProductById(id!),
+			enabled: !!id,
+			staleTime: 0,
+			refetchOnMount: true,
+
+			// Populate form fields once data arrives
+			select: (data) => {
+				if (!hydrated) {
+					setName(data.name);
+					setExpiryDate(data.expiry_date);
+					setQuantity(data.quantity);
+					setCategory(data.category || "");
+					setPhotoPreview(data.photo_url || null);
+					setHydrated(true);
+				}
+				return data;
+			},
 	});
 
 	const mutation = useMutation({

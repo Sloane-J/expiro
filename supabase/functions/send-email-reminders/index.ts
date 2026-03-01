@@ -17,7 +17,7 @@ serve(async () => {
   console.log("🚀 Daily reminder check started")
   
   try {
-    // === STEP 1: Rate Limit Check ===
+    // === STEP One: Rate Limit Check ===
     const today = new Date().toISOString().split('T')[0]
 
     const { count: emailsSentToday, error: countError } = await supabase
