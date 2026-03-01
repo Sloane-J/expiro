@@ -26,9 +26,14 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// --------------------
+// -------------------
 // Dialog renderer
-// --------------------
+/**
+ * Display a modal alert with the given title and description, and navigate to the login page when the dialog is dismissed.
+ *
+ * @param title - The dialog title shown to the user
+ * @param description - The dialog message shown below the title
+ */
 function showAuthDialog(title: string, description: string) {
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -109,7 +114,6 @@ supabase.auth.onAuthStateChange((event, session) => {
         return;
       }
 
-      // Manual logout → just redirect quietly
       redirectToLogin();
       return;
     }

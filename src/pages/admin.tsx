@@ -18,6 +18,13 @@ type PendingUser = {
   created_at: string
 }
 
+/**
+ * Sends a request to the Supabase Edge Function that notifies a user their account was approved.
+ *
+ * The function posts the given user id to the `notify-user-account-approved` endpoint; any errors are caught and logged and do not propagate to the caller.
+ *
+ * @param userId - The id of the user to notify
+ */
 async function notifyApprovedUser(userId: string) {
   try {
     await fetch(`${SUPABASE_FUNCTIONS_URL}/notify-user-account-approved`, {
@@ -29,11 +36,18 @@ async function notifyApprovedUser(userId: string) {
       body: JSON.stringify({ user_id: userId }),
     })
   } catch (err) {
-    // Don't block approval if notification fails
+    // Do not block approval if notification fails
     console.error('Failed to send approval WhatsApp notification:', err)
   }
 }
 
+/**
+ * Render the admin interface for reviewing and approving pending user accounts.
+ *
+ * Displays pending user requests (loading, error, and empty states), lets an admin approve users, refreshes the pending list after approval, and triggers a non-blocking notification to the approved user when a phone number is available.
+ *
+ * @returns A React element containing the user approvals UI.
+ */
 export default function AdminPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -62,7 +76,7 @@ export default function AdminPage() {
 
       if (error) throw error
 
-      // Fire WhatsApp notification (non-blocking)
+      // Fire WhatsApp notification(non-blocking)
       if (user.phone) {
         notifyApprovedUser(user.id)
       }

@@ -44,6 +44,11 @@ import { supabase } from "@/lib/supabase";
 
 type FilterStatus = "all" | "safe" | "expiring_soon" | "expired";
 
+/**
+ * Renders the inventory home page UI including profile header, search input, filter chips, product list with status badges and delete flow, pull-to-refresh, and add-product FAB.
+ *
+ * @returns The React element for the inventory management home page.
+ */
 export default function HomePage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -425,7 +430,7 @@ export default function HomePage() {
 					</div>
 				)}
 
-				{/* Feed-style product list */}
+				{/* Product list */}
 				{filteredProducts?.map((product, index) => {
 					const status = getProductStatus(product.expiry_date);
 
@@ -438,7 +443,7 @@ export default function HomePage() {
   onClick={() => navigate(`/products/${product.id}`)}
   onKeyDown={(e) => e.key === "Enter" && navigate(`/products/${product.id}`)}
 >
-								{/* Product photo — larger for mobile readability */}
+								{/* Product image */}
 								{product.photo_url ? (
 									<img
 										src={product.photo_url}
@@ -491,7 +496,7 @@ export default function HomePage() {
 								</div>
 							</div>
 
-							{/* Divider — skip after last item */}
+							{/* Divider */}
 							{index < filteredProducts.length - 1 && (
 								<div className="h-px bg-border/50 mx-4" />
 							)}
